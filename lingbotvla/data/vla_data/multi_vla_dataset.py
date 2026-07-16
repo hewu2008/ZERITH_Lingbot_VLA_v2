@@ -1,5 +1,6 @@
 from typing import Callable
 import numpy as np
+import traceback
 from lingbotvla.utils import helper
 import torch
 try:
@@ -174,6 +175,7 @@ class MultiVLADataset(Dataset):
                 dataset = self._datasets[dataset_idx]
                 logger.info(f"Last error: {repr(last_err)},\n"
                       f"Dataset: {dataset.dataset.repo_id}")
+                logger.info(f"Full traceback:\n{traceback.format_exc()}")
                 cur = np.random.randint(0, len(self))
                 if cur >= len(self):
                     cur = 0

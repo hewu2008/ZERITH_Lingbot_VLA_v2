@@ -24,10 +24,8 @@ data:
   prompt_type: global
   norm_type:
     - arm.position: meanstd
-    - end.position: meanstd
-    - effector.position: meanstd
     - waist.position: meanstd
-    - head.position: meanstd
+    - head.position: meanstd  
     - base.position: meanstd
   num_workers: 8
   use_future_image: true
