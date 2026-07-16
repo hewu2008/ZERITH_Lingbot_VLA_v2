@@ -240,6 +240,8 @@ def populate_dataset(
                 target_camera = CAMERA_MAPPING.get(camera, camera)
                 frame[f"observation.images.{target_camera}"] = img_array[i]
             dataset.add_frame(frame)
+        
+        dataset.save_episode()
 
     dataset.stop_image_writer()
 
@@ -306,7 +308,6 @@ def port_aloha(
         episodes=episodes,
         error_log_path=error_log_path,
     )
-    dataset.consolidate(run_compute_stats=False)
 
 
 if __name__ == "__main__":
