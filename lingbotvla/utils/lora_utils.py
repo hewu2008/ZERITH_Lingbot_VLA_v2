@@ -39,11 +39,26 @@ def add_lora_to_model(
     if init_lora_weights == "kaiming":
         init_lora_weights = True
 
+    module_name_map = {
+        "q": "q_proj",
+        "k": "k_proj",
+        "v": "v_proj",
+        "o": "o_proj",
+        "ffn.0": "gate_proj",
+        "ffn.1": "up_proj",
+        "ffn.2": "down_proj",
+    }
+
+    target_modules = []
+    for module in lora_target_modules.split(","):
+        module = module.strip()
+        target_modules.append(module_name_map.get(module, module))
+
     lora_config = LoraConfig(
         r=lora_rank,
         lora_alpha=lora_alpha,
         init_lora_weights=init_lora_weights,
-        target_modules=lora_target_modules.split(","),
+        target_modules=target_modules,
     )
 
     for lora_target_module in lora_config.target_modules:

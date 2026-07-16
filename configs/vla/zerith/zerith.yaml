@@ -82,7 +82,8 @@ train:
   use_lora: false
   lora_rank: 4
   lora_alpha: 4
-  lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+  lora_target_modules: "q,k,v,o,ffn.0,ffn.1,ffn.2"
+  lora_target_modules_support: "q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj"
   freeze_non_lora: true
   # pretrained_lora_path: /path/to/pretrained/lora/weights
   align_params:
