@@ -81,6 +81,12 @@ train:
   save_epochs: 29000
   enable_fp32: true
   enable_resume: true
+  use_lora: false
+  lora_rank: 4
+  lora_alpha: 4
+  lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+  freeze_non_lora: true
+  # pretrained_lora_path: /path/to/pretrained/lora/weights
   align_params:
     mode: 'query'
     num_task_tokens: 8

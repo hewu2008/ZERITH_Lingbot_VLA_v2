@@ -36,6 +36,7 @@ from lingbotvla.utils.async_hf_checkpoint import AsyncHFCheckpointSaver
 from lingbotvla.utils.arguments import EvalArguments, DataArguments, ModelArguments, TrainingArguments, parse_args, save_args
 from lingbotvla.utils.dist_utils import all_reduce
 from lingbotvla.models.config_registry import get_config_registry
+from lingbotvla.utils.lora_utils import add_lora_to_model, freeze_parameters
 
 from lingbotvla.models.vla.vision_models.module_utils import (
     build_depth_model,
@@ -282,6 +283,34 @@ class MyTrainingArguments(TrainingArguments):
         default=False,
         metadata={"help": "Whether to apply FSDP2 for VLM."},
     )
+    use_lora: bool = field(
+        default=False,
+        metadata={"help": "Whether to use LoRA for fine-tuning."},
+    )
+    lora_rank: int = field(
+        default=4,
+        metadata={"help": "Rank for LoRA."},
+    )
+    lora_alpha: int = field(
+        default=4,
+        metadata={"help": "Alpha for LoRA."},
+    )
+    lora_target_modules: str = field(
+        default="q,k,v,o,ffn.0,ffn.2",
+        metadata={"help": "Target modules for LoRA."},
+    )
+    lora_target_modules_support: str = field(
+        default="q,k,v,o,ffn.0,ffn.2",
+        metadata={"help": "Supported target modules for LoRA."},
+    )
+    pretrained_lora_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "Path to pretrained LoRA weights."},
+    )
+    freeze_non_lora: bool = field(
+        default=True,
+        metadata={"help": "Whether to freeze non-LoRA parameters."},
+    )
 
 @dataclass
 class MyDataArguments(DataArguments):
@@ -502,6 +531,25 @@ def main():
         use_future_image=args.data.use_future_image,
     )
     logger.info_rank0(model)
+
+    if args.train.use_lora:
+        logger.info_rank0("Applying LoRA to model...")
+        if args.train.freeze_non_lora:
+            freeze_parameters(model)
+
+        add_lora_to_model(
+            model,
+            lora_rank=args.train.lora_rank,
+            lora_alpha=args.train.lora_alpha,
+            lora_target_modules=args.train.lora_target_modules,
+            pretrained_lora_path=args.train.pretrained_lora_path,
+            lora_target_modules_support=args.train.lora_target_modules_support.split(","),
+        )
+
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        total_params = sum(p.numel() for p in model.parameters())
+        logger.info_rank0(f"LoRA enabled: {trainable_params}/{total_params} parameters ({trainable_params/total_params*100:.2f}%) are trainable")
+
     if args.train.use_compile:
         model = torch.compile(model)
 
