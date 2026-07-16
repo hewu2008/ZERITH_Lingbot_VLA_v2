@@ -26,8 +26,8 @@ torchrun --nnodes=$NNODES --nproc-per-node $NPROC_PER_NODE --node-rank $NODE_RAN
   --master-addr=$MASTER_ADDR --master-port=$MASTER_PORT \
   tasks/vla/train_lingbotvla.py ./configs/vla/zerith/zerith.yaml \
   --train.use_lora=true \
-  --train.lora_rank=8 \
-  --train.lora_alpha=8 \
+  --train.lora_rank=4 \
+  --train.lora_alpha=4 \
   --train.freeze_non_lora=true \
   --train.lr=1e-4 \
   --train.output_dir output/zerith_lora \
