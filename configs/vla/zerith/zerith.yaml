@@ -8,8 +8,8 @@ model:
 
 data:
   datasets_type: vla
-  data_name: multi
-  train_path: assets/training_data/zerith.txt
+  data_name: zerith
+  train_path: /home/jszn/hewu/dataset/hewu2008/pick_and_place_v2
   robot_config_root: ./configs/robot_configs
   joints:
     - arm.position: 14
