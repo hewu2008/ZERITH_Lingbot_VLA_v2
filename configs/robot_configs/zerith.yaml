@@ -1,0 +1,85 @@
+states:
+  - observation.state.arm.position:
+      origin_keys:
+        - observation.state:
+            start: 0
+            end: 7
+        - observation.state:
+            start: 8
+            end: 15
+
+  - observation.state.effector.position:
+      origin_keys:
+        - observation.state:
+            start: 7
+            end: 8
+        - observation.state:
+            start: 15
+            end: 16
+
+  - observation.state.waist.position:
+      origin_keys:
+        - observation.state:
+            start: 16
+            end: 19
+
+  - observation.state.head.position:
+      origin_keys:
+        - observation.state:
+            start: 19
+            end: 21
+
+  - observation.state.base.position:
+      origin_keys:
+        - observation.state:
+            start: 21
+            end: 23
+
+actions:
+  - action.arm.position:
+      origin_keys:
+          - action:
+              start: 0
+              end: 7
+          - action:
+              start: 8
+              end: 15
+      subtract_state: False
+
+  - action.effector.position:
+      origin_keys:
+          - action:
+              start: 7
+              end: 8
+          - action:
+              start: 15
+              end: 16
+      subtract_state: False
+
+  - action.waist.position:
+      origin_keys:
+          - action:
+              start: 16
+              end: 19
+      subtract_state: False
+
+  - action.head.position:
+      origin_keys:
+          - action:
+              start: 19
+              end: 21
+      subtract_state: False
+
+  - action.base.position:
+      origin_keys:
+          - action:
+              start: 21
+              end: 23
+      subtract_state: False
+
+images:
+  - observation.images.camera_top
+  - observation.images.camera_wrist_left
+  - observation.images.camera_wrist_right
+
+norm_stats: assets/norm_stats/zerith.json
