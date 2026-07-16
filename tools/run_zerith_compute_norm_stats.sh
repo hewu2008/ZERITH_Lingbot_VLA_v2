@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DATASET_PATH="/home/jszn/hewu/dataset/hewu2008/pick_and_place_v2"
+DATASET_PATH="/home/jszn/hewu/dataset/hewu2008/pick_and_place_lingbot_vla_v2"
 
 CUDA_VISIBLE_DEVICES=0 bash train.sh scripts/compute_norm_stats.py ./configs/vla/zerith/zerith.yaml \
   --data.data_name zerith \
