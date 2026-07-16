@@ -8,11 +8,9 @@ import time
 import cv2
 import h5py
 import numpy as np
-from openpi_client import base_policy as _base_policy
-from openpi_client import image_tools
-from openpi_client import msgpack_numpy
-from typing_extensions import override
 import websockets.sync.client
+
+from typing_extensions import override
 
 subprocess.run(
     ["sudo", "rm", "-rf", "/dev/shm/zcm"],
@@ -20,11 +18,15 @@ subprocess.run(
     text=True,
 )
 
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, project_root)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from utils.real_env_sdk import make_real_env
+from openpi_client import image_tools
+from robot_infer.msgpack_numpy import Packer, unpackb
 
+logger = logging.getLogger(__name__)
 
 DT = 1 / 30
 DEFAULT_PROMPT = "grab all the ducks and put them into the basket"
@@ -51,36 +53,47 @@ def get_camera_image(images: dict, camera_name: str):
     raise KeyError(f"Camera '{camera_name}' not found in observation images.")
 
 
-class WebsocketClientPolicy(_base_policy.BasePolicy):
-    """Implements the Policy interface by communicating with a server over websocket."""
-
-    def __init__(self, host: str = "127.0.0.1", port: int = 55555) -> None:
+class WebsocketInferenceClient:
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 55555,
+        api_key=None
+    ) -> None:
         self._uri = f"ws://{host}:{port}"
-        self._packer = msgpack_numpy.Packer()
+        self._packer = Packer()
+        self._api_key = api_key
         self._ws, self._server_metadata = self._wait_for_server()
 
     def get_server_metadata(self):
         return self._server_metadata
 
     def _wait_for_server(self):
-        logging.info("Waiting for server at %s...", self._uri)
+        logger.info("Waiting for server at %s...", self._uri)
         while True:
             try:
-                conn = websockets.sync.client.connect(self._uri, compression=None, max_size=None)
-                metadata = msgpack_numpy.unpackb(conn.recv())
+                headers = {"Authorization": f"Api-Key {self._api_key}"} if self._api_key else None
+                conn = websockets.sync.client.connect(
+                    self._uri,
+                    compression=None,
+                    max_size=None,
+                    additional_headers=headers,
+                )
+                metadata = unpackb(conn.recv())
+                logger.info(f"Connected to server. Metadata: {metadata}")
                 return conn, metadata
             except ConnectionRefusedError:
-                logging.info("Still waiting for server...")
+                logger.info("Still waiting for server...")
                 time.sleep(5)
 
     @override
-    def infer(self, obs):  # noqa: UP006
+    def infer(self, obs):
         data = self._packer.pack(obs)
         self._ws.send(data)
         response = self._ws.recv()
         if isinstance(response, str):
             raise RuntimeError(f"Error in inference server:\n{response}")
-        return msgpack_numpy.unpackb(response)
+        return unpackb(response)
 
     @override
     def reset(self) -> None:
@@ -91,6 +104,11 @@ class WebsocketClientPolicy(_base_policy.BasePolicy):
             return image
         _, buffer = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 100])
         return buffer
+
+    def close(self):
+        if hasattr(self, '_ws') and self._ws is not None:
+            self._ws.close()
+            logger.info("Connection closed")
 
 
 class ActionSmooth:
@@ -108,12 +126,16 @@ class ActionSmooth:
 
     def get_action(self, observation):
         if self.t % self.query_frequency == 0:
-            self.action_keep = self.client.infer(observation)["actions"][self.base_delay : self.action_horizon, ...]
-            self.all_time_actions[self.t, self.t : self.t + self.action_horizon - self.base_delay] = self.action_keep
+            self.action_keep = self.client.infer(observation)["actions"][self.base_delay:self.action_horizon, ...]
+            self.all_time_actions[self.t, self.t:self.t + self.action_horizon - self.base_delay] = self.action_keep
 
         actions_for_curr_step = self.all_time_actions[:, self.t]
         actions_populated = np.all(actions_for_curr_step != 0, axis=1)
         actions_for_curr_step = actions_for_curr_step[actions_populated]
+
+        if len(actions_for_curr_step) == 0:
+            return np.zeros(23, dtype=np.float32)
+
         base_action = actions_for_curr_step[-1, 19:]
 
         k = 0.01
@@ -127,7 +149,7 @@ class ActionSmooth:
         return np.concatenate([action[:19], base_action])
 
 
-def prepare_observation(observation, client: WebsocketClientPolicy, camera_names: list[str], prompt: str):
+def prepare_observation(observation, client: WebsocketInferenceClient, camera_names: list[str], prompt: str):
     observation["state"] = observation["qpos"]
     observation["prompt"] = prompt
 
@@ -140,8 +162,8 @@ def prepare_observation(observation, client: WebsocketClientPolicy, camera_names
     return observation
 
 
-def warm_up(action_smooth, observation, client: WebsocketClientPolicy, args):
-    logging.info("Warm up")
+def warm_up(action_smooth, observation, client: WebsocketInferenceClient, args):
+    logger.info("Warm up")
     observation = prepare_observation(observation, client, args.camera_names, "")
 
     for _ in range(args.warmup_steps):
@@ -170,7 +192,7 @@ def load_hdf5(ep_path):
         )
         action = state
         prompt = ep.attrs["task_name"]
-        logging.info("Loaded task prompt: %s", prompt)
+        logger.info("Loaded task prompt: %s", prompt)
     return action
 
 
@@ -180,12 +202,12 @@ def main(args):
     time.sleep(2)
     env.move_to_init_pose()
 
-    openpi_client = WebsocketClientPolicy(host=args.host, port=args.port)
-    action_smooth = ActionSmooth(openpi_client, max_timesteps=args.num_steps)
+    client = WebsocketInferenceClient(host=args.host, port=args.port)
+    action_smooth = ActionSmooth(client, max_timesteps=args.num_steps)
 
     observation = env.reset().observation
     observation["state"] = observation["qpos"]
-    warm_up(action_smooth, observation, openpi_client, args)
+    warm_up(action_smooth, observation, client, args)
 
     data_action = None
     if args.init_hdf5:
@@ -193,56 +215,66 @@ def main(args):
         data_action = data[args.init_frame_idx]
         env.move_to_target_joint(data_action[:-2])
         time.sleep(4)
-        logging.info("Loaded initialization action: %s", data_action)
+        logger.info("Loaded initialization action: %s", data_action)
 
-    logging.info("Paused before inference. Adjust the robot, then continue from pdb to start policy control.")
-    import pdb
-
-    pdb.set_trace()
+    if not args.skip_pause:
+        logger.info("Paused before inference. Adjust the robot, then continue to start policy control.")
+        import pdb
+        pdb.set_trace()
 
     observation = env.reset().observation
     observation = env.get_observation().observation
 
-    for _ in range(args.num_steps):
-        observation["state"] = observation["qpos"]
+    try:
+        for step in range(args.num_steps):
+            observation["state"] = observation["qpos"]
 
-        time0 = time.time()
-        observation = prepare_observation(observation, openpi_client, args.camera_names, args.prompt)
-        action = np.copy(action_smooth.get_action(observation))
-        observation = env.get_observation().observation
+            time0 = time.time()
+            observation = prepare_observation(observation, client, args.camera_names, args.prompt)
+            action = np.copy(action_smooth.get_action(observation))
+            observation = env.get_observation().observation
 
-        if action[15] > 0.7:
-            action[15] = 1.3
+            if action[15] > 0.7:
+                action[15] = 1.3
 
-        if data_action is not None:
-            action[-4:-2] = data_action[-4:-2]
+            if data_action is not None:
+                action[-4:-2] = data_action[-4:-2]
 
-        logging.info("action: %s", action)
-        env.step_joint(action[:-2]).observation
-        elapsed_time = time.time() - time0
-        time.sleep(max(0, DT - elapsed_time))
+            if step % 10 == 0:
+                logger.info(f"Step {step}: action = {action}")
 
-    logging.info("Inference completed")
+            env.step_joint(action[:-2])
+            elapsed_time = time.time() - time0
+            time.sleep(max(0, DT - elapsed_time))
+
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user")
+    finally:
+        client.close()
+        logger.info("Inference completed")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--host", type=str, default="127.0.0.1", help="policy server host")
-    parser.add_argument("--port", type=int, default=55555, help="policy server port")
-    parser.add_argument("--prompt", type=str, default=DEFAULT_PROMPT, help="language instruction")
-    parser.add_argument("--num_steps", type=int, default=20000, help="number of control steps")
-    parser.add_argument("--warmup_steps", type=int, default=10, help="number of warmup inference calls")
-    parser.add_argument("--init_hdf5", type=str, required=True, help="optional HDF5 file used for initialization")
-    parser.add_argument("--init_frame_idx", type=int, default=30, help="frame index used from the initialization HDF5")
+    parser = argparse.ArgumentParser(description="Zerith Inference WebSocket Client")
+
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="Policy server host")
+    parser.add_argument("--port", type=int, default=55555, help="Policy server port")
+    parser.add_argument("--prompt", type=str, default=DEFAULT_PROMPT, help="Language instruction")
+    parser.add_argument("--num_steps", type=int, default=20000, help="Number of control steps")
+    parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warmup inference calls")
+    parser.add_argument("--init_hdf5", type=str, default=None, help="Optional HDF5 file used for initialization")
+    parser.add_argument("--init_frame_idx", type=int, default=30, help="Frame index used from the initialization HDF5")
     parser.add_argument(
         "--camera_names",
         nargs="+",
         type=str,
         choices=["cam_high", "cam_left_wrist", "cam_right_wrist"],
         default=["cam_high", "cam_left_wrist", "cam_right_wrist"],
-        help="camera names",
+        help="Camera names",
     )
+    parser.add_argument("--api_key", type=str, default=None, help="API key for authentication")
+    parser.add_argument("--skip_pause", action="store_true", help="Skip the pause before starting inference")
 
-    logging.basicConfig(level=logging.INFO, force=True)
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', force=True)
     args = parser.parse_args()
     main(args)
