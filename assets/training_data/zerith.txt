@@ -1,0 +1,4 @@
+# Zerith robot training data list
+# Format: <robot_config_name> <lerobot_dataset_path>
+# Example: zerith /path/to/zerith_dataset
+# Replace /path/to/zerith_dataset with actual dataset path before training
