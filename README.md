@@ -155,6 +155,30 @@ The post-training config also enables the Muon optimizer. Muon can produce a bet
 
 For real-world scenarios, see the native-depth training configuration [real_robot.yaml](configs/vla/real_robot/real_robot.yaml). For detailed explanations of batch size, gradient accumulation, checkpointing, depth/video distillation, MoE, and optimizer settings, see [Training_Config.md](configs/vla/Training_Config.md).
 
+### LoRA Fine-Tuning
+
+For efficient fine-tuning, we support LoRA (Low-Rank Adaptation) for Zerith robots:
+
+```bash
+bash tools/train_zerith_lora.sh
+```
+
+This script trains with the following LoRA settings:
+- `lora_rank=8`: Low-rank dimension
+- `lora_alpha=8`: Scaling factor
+- `freeze_non_lora=true`: Freeze all non-LoRA parameters
+- `lr=1e-4`: Higher learning rate for LoRA
+
+To customize LoRA parameters, edit [tools/train_zerith_lora.sh](tools/train_zerith_lora.sh) or pass command-line arguments:
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1 bash tools/train_zerith_lora.sh \
+  --train.lora_rank=16 \
+  --train.lr=5e-5
+```
+
+See [configs/vla/zerith/zerith.yaml](configs/vla/zerith/zerith.yaml) for available LoRA configurations.
+
 ## Evaluation and Deployment
 
 ### Open-Loop Evaluation
@@ -197,6 +221,42 @@ python -m deploy.lingbot_vla_v2_policy \
 ```
 
 Using `deploy.lingbot_vla_v2_policy`, one inference call on an NVIDIA GeForce RTX 4090D takes about **130 ms** with **10 denoising steps**.
+
+### Zerith Robot Deployment
+
+For Zerith robot deployment, we provide a WebSocket-based inference server and client:
+
+**Start the inference server:**
+```bash
+python robot_infer/websocket_inference_server.py \
+  --model_path /path/to/model/weights \
+  --port 55555 \
+  --use_compile true
+```
+
+**Start the inference client (testing mode):**
+```bash
+python robot_infer/websocket_inference_client.py \
+  --host 127.0.0.1 \
+  --port 55555 \
+  --prompt "grab all the ducks and put them into the basket" \
+  --test_mode
+```
+
+**Start the inference client (real robot):**
+```bash
+python robot_infer/websocket_inference_client.py \
+  --host 127.0.0.1 \
+  --port 55555 \
+  --prompt "grab all the ducks and put them into the basket" \
+  --init_hdf5 /path/to/init.hdf5
+```
+
+The client supports:
+- Automatic connection and reconnection
+- Initial position movement (via `--init_hdf5` or default pose)
+- Action smoothing for stable robot control
+- Real-time inference loop with camera images
 
 ## Performance
 
