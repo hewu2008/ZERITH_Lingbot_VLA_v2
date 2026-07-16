@@ -75,8 +75,7 @@ actions:
           - action:
               start: 21
               end: 23
-      subtract_state: True
-      relative_type: euclidean
+      subtract_state: False
 
 images:
   - observation.images.camera_top: 
