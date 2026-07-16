@@ -6,21 +6,19 @@ Example:
 """
 
 import dataclasses
+import os
 from datetime import datetime
 from pathlib import Path
 import shutil
 from typing import Literal
 
 import h5py
-from lerobot.common.datasets.lerobot_dataset import LEROBOT_HOME
-from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
-from lerobot.common.datasets.push_dataset_to_hub._download_raw import download_raw
+from lerobot.datasets.lerobot_dataset import LeRobotDataset
+from lerobot.datasets.lerobot_dataset import HF_LEROBOT_HOME
 import numpy as np
 import torch
 import tqdm
 import tyro
-
-
 
 
 @dataclasses.dataclass(frozen=True)
@@ -74,8 +72,8 @@ def create_empty_dataset(
             ],
         }
 
-    if Path(LEROBOT_HOME / repo_id).exists():
-        shutil.rmtree(LEROBOT_HOME / repo_id)
+    if Path(HF_LEROBOT_HOME / repo_id).exists():
+        shutil.rmtree(HF_LEROBOT_HOME / repo_id)
 
     return LeRobotDataset.create(
         repo_id=repo_id,
@@ -179,7 +177,7 @@ def load_raw_episode_data(
                 state_base[:],
             ],
             dim=1,
-        )
+        ).float()
         action = torch.cat([state[1:], state[-1].unsqueeze(0)], dim=0)
         assert action.shape == state.shape, "action.shape should be same with state.shape"
 
@@ -234,6 +232,7 @@ def populate_dataset(
             frame = {
                 "observation.state": state[i],
                 "action": action[i],
+                "task": prompt,
             }
 
             for camera, img_array in imgs_per_cam.items():
@@ -241,8 +240,6 @@ def populate_dataset(
                 target_camera = CAMERA_MAPPING.get(camera, camera)
                 frame[f"observation.images.{target_camera}"] = img_array[i]
             dataset.add_frame(frame)
-
-        dataset.save_episode(task=prompt)
 
     dataset.stop_image_writer()
 
@@ -283,8 +280,8 @@ def port_aloha(
     dataset_config: DatasetConfig = DEFAULT_DATASET_CONFIG,
     error_log_path: Path | None = None,
 ):
-    if (LEROBOT_HOME / repo_id).exists():
-        shutil.rmtree(LEROBOT_HOME / repo_id)
+    if (HF_LEROBOT_HOME / repo_id).exists():
+        shutil.rmtree(HF_LEROBOT_HOME / repo_id)
     if not raw_dir.exists():
         if raw_repo_id is None:
             raise ValueError("raw_repo_id must be provided if raw_dir does not exist")
