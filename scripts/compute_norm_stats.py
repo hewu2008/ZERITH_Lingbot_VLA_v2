@@ -20,7 +20,7 @@ from lingbotvla.utils.normalize import (
 )
 from lingbotvla.models import build_processor
 from lingbotvla.utils import helper
-from lingbotvla.utils.arguments import parse_args
+from lingbotvla.utils.arguments import parse_args, ModelArguments
 from lingbotvla.utils.dist_utils import all_reduce
 import lingbotvla.utils.normalize as normalize
 
@@ -51,6 +51,7 @@ class NormComputeDataArguments(MyDataArguments):
 
 @dataclass
 class Arguments:
+    model: "ModelArguments" = field(default_factory=ModelArguments)
     data: "NormComputeDataArguments" = field(default_factory=NormComputeDataArguments)
     train: "MyTrainingArguments" = field(default_factory=MyTrainingArguments)
 
