@@ -8,4 +8,4 @@ CUDA_VISIBLE_DEVICES=0 bash train.sh scripts/compute_norm_stats.py ./configs/vla
   --data.train_path "$DATASET_PATH" \
   --data.robot_config_root ./configs/robot_configs \
   --data.norm_path assets/norm_stats/zerith.json \
-  --data.data_ratio_for_norm_compute 0.1
+  --data.data_ratio_for_norm_compute 0.01
