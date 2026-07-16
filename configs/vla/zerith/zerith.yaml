@@ -34,7 +34,7 @@ data:
   use_future_image: true
 
 train:
-  output_dir: /path/to/save_ckpt
+  output_dir: /home/jszn/hewu/alg-product/ZERITH_Lingbot_VLA_V2/output
   moe_monitor_interval: 1000
   enable_gradient_checkpointing: true
   precompute_grid_thw: true
