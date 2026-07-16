@@ -3,3 +3,4 @@
 **/__pycache__/
 lingbotvla.egg-info/
 output/
+wandb/

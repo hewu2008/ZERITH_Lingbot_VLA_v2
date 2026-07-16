@@ -58,7 +58,8 @@ train:
   enable_full_shard: false
   module_fsdp_enable: true
   use_compile: true
-  use_wandb: false
+  use_wandb: true
+  wandb_project: zerith_lingbot_vla_v2
   rmpad: false
   rmpad_with_pos_ids: false
   ulysses_parallel_size: 1

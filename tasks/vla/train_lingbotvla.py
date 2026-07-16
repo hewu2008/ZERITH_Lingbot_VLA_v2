@@ -987,7 +987,7 @@ def main():
                 f"{maxvio_str}"
                 f"{sigmoid_str}"
                 f"GradNorm {grad_norm:.4f}, "
-                f"LR {lr:.2e}, "
+                f"LR {lr:.4e}, "
                 f"{expert_lr_str}"
                 f"StepTime {delta_time:.3f}s, "
                 f"Depth_Forward_Time {depth_forward_time: .3f}s, "
