@@ -31,4 +31,4 @@ torchrun --nnodes=$NNODES --nproc-per-node $NPROC_PER_NODE --node-rank $NODE_RAN
   --train.freeze_non_lora=true \
   --train.lr=1e-4 \
   --train.output_dir output/zerith_lora \
-  2>&1 | tee log_zerith_lora.txt
+  2>&1 | tee output/log_zerith_lora.txt
