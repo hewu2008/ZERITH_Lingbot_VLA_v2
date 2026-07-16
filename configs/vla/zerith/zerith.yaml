@@ -72,7 +72,8 @@ train:
   lr_decay_style: cosine
   num_train_epochs: 29000
   micro_batch_size: 1
-  global_batch_size: 1
+  global_batch_size: 8
+  gradient_accumulation_steps: 8
   max_steps: 40000
   ckpt_manager: dcp
   save_steps: 1000
