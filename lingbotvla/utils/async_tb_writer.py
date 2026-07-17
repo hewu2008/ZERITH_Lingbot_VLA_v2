@@ -59,7 +59,10 @@ class AsyncTBWriter:
         plt.close(fig)
 
     def flush(self):
-        wandb.flush()
+        if hasattr(wandb, 'flush'):
+            wandb.flush()
+        else:
+            wandb.log({})
 
     def close(self):
         self.flush()
