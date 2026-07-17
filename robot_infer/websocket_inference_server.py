@@ -236,7 +236,21 @@ class LingbotVLAv2InferenceServer:
 
         logger.info('Initializing model ... ')
         self.vla = LingBotVlaV2InferencePolicy(config, eval=True)
-        self.load_model_weights(path_to_pi_model, strict=True)
+
+        use_lora = training_config['train'].get('use_lora', False)
+        if use_lora:
+            logger.info('Injecting LoRA adapters...')
+            from lingbotvla.utils.lora_utils import add_lora_to_model
+            add_lora_to_model(
+                self.vla.model,
+                lora_rank=training_config['train'].get('lora_rank', 4),
+                lora_alpha=training_config['train'].get('lora_alpha', 4),
+                lora_target_modules=training_config['train'].get('lora_target_modules', 'q,k,v,o,ffn.0,ffn.1,ffn.2'),
+                pretrained_lora_path=None,
+                lora_target_modules_support=training_config['train'].get('lora_target_modules_support', 'q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj').split(','),
+            )
+
+        self.load_model_weights(path_to_pi_model, strict=False)
 
         self.vla.feature_transform = None
         self.data_config = data_config
