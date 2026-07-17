@@ -24,10 +24,10 @@ data:
   prompt_type: global
   norm_type:
     - arm.position: meanstd
-    - effector.position: meanstd
+    - effector.position: identity
     - waist.position: meanstd
     - head.position: meanstd  
-    - base.position: meanstd
+    - base.position: identity
   num_workers: 8
   use_future_image: true
 
@@ -70,6 +70,7 @@ train:
   max_state_dim: 55
   optimizer: adamw
   lr: 5.0e-5
+  lr_min: 1e-6
   lr_decay_style: cosine
   lr_warmup_ratio: 0.05
   num_train_epochs: 29000
