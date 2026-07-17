@@ -156,7 +156,7 @@ def prepare_observation(observation, client: WebsocketInferenceClient, camera_na
     for camera_name in camera_names:
         image = get_camera_image(observation["images"], camera_name)
         observation["images"][camera_name] = client.compress_image(
-            image_tools.resize_with_pad(cv2.cvtColor(image, cv2.COLOR_RGB2BGR), 224, 224)
+            cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         )
 
     return observation
