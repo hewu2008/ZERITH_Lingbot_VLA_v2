@@ -22,8 +22,12 @@ MASTER_ADDR=${MASTER_ADDR:=0.0.0.0}
 MASTER_PORT=${MASTER_PORT:=62500}
 
 
-torchrun --nnodes=$NNODES --nproc-per-node $NPROC_PER_NODE --node-rank $NODE_RANK \
-  --master-addr=$MASTER_ADDR --master-port=$MASTER_PORT \
+python -m torch.distributed.run \
+  --nnodes=$NNODES \
+  --nproc-per-node $NPROC_PER_NODE \
+  --node-rank $NODE_RANK \
+  --master-addr=$MASTER_ADDR \
+  --master-port=$MASTER_PORT \
   tasks/vla/train_lingbotvla.py ./configs/vla/zerith/zerith.yaml \
   --train.use_lora=true \
   --train.lora_rank=8 \
