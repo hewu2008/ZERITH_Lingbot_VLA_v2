@@ -199,7 +199,7 @@ class LingbotVLAv2InferenceServer:
     def load_vla(self, path_to_pi_model) -> LingbotVlaV2Policy:
         logger.info(f"Loading model from: {path_to_pi_model}")
 
-        training_config_path = Path(path_to_pi_model).parent.parent.parent / 'lingbotvla_cli.yaml'
+        training_config_path = Path(path_to_pi_model).parent.parent / 'lingbotvla_cli.yaml'
         with open(training_config_path, 'r') as f:
             training_config = yaml.safe_load(f)
 
