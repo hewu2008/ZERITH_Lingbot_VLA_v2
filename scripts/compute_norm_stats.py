@@ -227,7 +227,7 @@ if __name__ == "__main__":
     
     ratio = args.data.data_ratio_for_norm_compute
     print(f"Start computing norm stats with ratio={ratio}, num_workers={args.data.num_workers}")
-    compute_norm(dataset._datasets[0].dataset, args.train.micro_batch_size, stats, state_norm_keys, action_norm_keys,
+    compute_norm(dataset._datasets[0], args.train.micro_batch_size, stats, state_norm_keys, action_norm_keys,
                  delta_norm, ratio=ratio, rank=rank, world_size=world_size,
                  num_workers=args.data.num_workers, norm_merge_chunk_dim=args.data.norm_merge_chunk_dim)
     print(f"End computing norm stats computed with ratio={ratio}")

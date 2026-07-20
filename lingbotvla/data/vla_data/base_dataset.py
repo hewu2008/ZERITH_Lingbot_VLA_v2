@@ -227,7 +227,12 @@ class VLADataset(Dataset):
         load_features = None
         if load_only_actions_and_states:
             load_features = set()
-            load_features.update(['observation.state', 'action', 'episode_index', 'task_index', 'timestamp', 'frame_index'])
+            for key in self.feature_transform.org_features.get('states', []):
+                load_features.add(key)
+            for key in self.feature_transform.org_features.get('actions', []):
+                load_features.add(key)
+            load_features.update(['episode_index', 'task_index', 'timestamp', 'frame_index'])
+            
             load_features = list(load_features)
 
         self.dataset = LeRobotDataset(
