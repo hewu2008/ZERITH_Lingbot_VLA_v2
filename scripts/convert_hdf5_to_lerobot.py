@@ -295,7 +295,7 @@ def port_aloha(
 
     dataset = create_empty_dataset(
         repo_id,
-        robot_type="mobile_arx",
+        robot_type="zerith",
         mode=mode,
         has_effort=False,
         has_velocity=False,
