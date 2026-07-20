@@ -235,6 +235,12 @@ class VLADataset(Dataset):
             
             load_features = list(load_features)
 
+        logger.info(
+            f"VLADataset initialized: repo_id={repo_id}, data_name={data_name}, "
+            f"image_size={image_size}, load_image={load_image}, "
+            f"load_only_actions_and_states={load_only_actions_and_states}, "
+            f"num_features={len(load_features) if load_features else 'all'}"
+        )
         self.dataset = LeRobotDataset(
             repo_id=repo_id,
             image_transforms=Resize(image_size),
