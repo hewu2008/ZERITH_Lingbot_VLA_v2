@@ -9,7 +9,7 @@ model:
 data:
   datasets_type: vla
   data_name: zerith
-  train_path: /home/jszn/hewu/dataset/hewu2008/clear_the_bin_box_v1
+  train_path: /home/jszn/hewu/dataset/hewu2008/1_clear_the_bin_box_20260720
   robot_config_root: ./configs/robot_configs
   joints:
     - arm.position: 14
