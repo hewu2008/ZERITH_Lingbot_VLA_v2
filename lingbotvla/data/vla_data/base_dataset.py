@@ -73,10 +73,13 @@ class LeRobotDataset(BaseLeRobotDataset):
         self,
         repo_id: str,
         load_image: bool = True,
+        features: list = None,
         **kwargs,
     ):
         super().__init__(repo_id, **kwargs)
         self.load_image = load_image
+        if features is not None:
+            self.hf_dataset = self.load_hf_dataset(features)
 
     def _query_hf_dataset(self, query_indices: dict[str, list[int]]) -> dict:
         """
@@ -91,10 +94,12 @@ class LeRobotDataset(BaseLeRobotDataset):
             Dict with stacked tensors of queried data (video keys excluded)
         """
         result: dict = {}
+        available_columns = set(self.hf_dataset.column_names)
         for key, q_idx in query_indices.items():
             if key in self.meta.video_keys:
                 continue
-            # Map absolute indices to relative indices if needed
+            if key not in available_columns:
+                continue
             relative_indices = _to_relative_indices(self, q_idx)
             result[key] = torch.stack(self.hf_dataset[relative_indices][key])
         return result
@@ -182,6 +187,7 @@ class VLADataset(Dataset):
         image_augment = False,
         use_depth_align = False,
         use_future_image = False,
+        load_only_actions_and_states = False,
     ):
         if do_nomalize and config is None:
             raise ValueError("VLADataset requires a model config; pass model.config via build_vla_dataset.")
@@ -218,11 +224,18 @@ class VLADataset(Dataset):
         self.dataset_meta = LeRobotDatasetMetadata(**metadata_kwargs)
         merged_delta = {**self.get_delta_timestamps(), **self.get_video_delta_timestamps()}
 
+        load_features = None
+        if load_only_actions_and_states:
+            load_features = set()
+            load_features.update(['observation.state', 'action', 'episode_index', 'task_index', 'timestamp', 'frame_index'])
+            load_features = list(load_features)
+
         self.dataset = LeRobotDataset(
             repo_id=repo_id,
             image_transforms=Resize(image_size),
             delta_timestamps=merged_delta,
-            load_image=load_image
+            load_image=load_image,
+            features=load_features,
         )
 
         self.return_item = return_item

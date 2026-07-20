@@ -2,6 +2,7 @@ import json
 import numpy as np
 import os
 import sys
+import time
 import random
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -9,9 +10,9 @@ from tqdm import trange, tqdm
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
-import torch.multiprocessing as mp
 import torch
 import torch.distributed as dist
+from torch.utils.data import DataLoader, Subset
 
 from lingbotvla.data import build_vla_dataset
 from lingbotvla.utils.normalize import (
@@ -28,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from tasks.vla.train_lingbotvla import MyTrainingArguments, MyDataArguments
 
 logger = helper.create_logger(__name__)
+
 
 @dataclass
 class NormComputeDataArguments(MyDataArguments):
@@ -75,83 +77,65 @@ def get_all_tasks(task_files, robot_name, sep=' '):
     return data_names, task_list
 
 
-def collate_dict(batch_list):
-    """
-    Convert [{ 'a': t1, 'b': t2 }, { 'a': t3, 'b': t4 }]
-    into { 'a': tensor([t1, t3]), 'b': tensor([t2, t4]) }
-    """
+def collate_fn(batch_list):
+    if not batch_list:
+        return {}
     keys = batch_list[0].keys()
     batch = {}
     for key in keys:
-        # If it is a Tensor, stack them together
         if isinstance(batch_list[0][key], torch.Tensor):
             batch[key] = torch.stack([item[key] for item in batch_list])
     return batch
 
-# Worker logic - use an initializer to avoid passing the entire dataset with every task
-_global_dataset = None
 
-def init_worker(dataset):
-    global _global_dataset
-    _global_dataset = dataset
-
-def worker_fn(indices):
-    global _global_dataset
-    # 1. Fetch each dict one by one
-    samples = [_global_dataset[i] for i in indices]
-    # 2. Collate the list of dicts into a single large dict (Batch)
-    batch = collate_dict(samples)
-    return batch
-
-def get_batch_indices(target_ids, batch_size):
-    return [target_ids[i:i + batch_size] for i in range(0, len(target_ids), batch_size)]
-
-
-def compute_norm(dataset, batch_size, stats, state_norm_keys, acton_norm_keys, delta_norm, ratio,
+def compute_norm(dataset, batch_size, stats, state_norm_keys, action_norm_keys, delta_norm, ratio,
                  rank=0, world_size=1, num_workers=8, norm_merge_chunk_dim=False):
     if ratio < 1:
         num_step = int(len(dataset)*ratio)
-        # Fix the seed so every rank samples the same global subset; slicing it
-        # afterwards yields a deterministic, disjoint partition.
         random.seed(42)
         data_ids = random.sample(range(len(dataset)), num_step)
     else:
         data_ids = list(range(len(dataset)))
 
-    # Strided slicing by rank offsets the imbalance caused by differing sub-dataset sizes.
     data_ids = data_ids[rank::world_size]
 
-    mp.set_start_method('fork', force=True)
+    subset_dataset = Subset(dataset, data_ids)
 
-    all_batch_indices = get_batch_indices(data_ids, batch_size)
-    total_batches = len(all_batch_indices) # Total number of batches
+    data_loader = DataLoader(
+        subset_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        collate_fn=collate_fn,
+        persistent_workers=False,
+        multiprocessing_context='fork',
+        drop_last=False,
+    )
 
-    # With the initializer each worker initializes the dataset only once, avoiding
-    # passing it along with every task.
-    with mp.Pool(processes=num_workers, initializer=init_worker, initargs=(dataset,)) as pool:
-        # imap_unordered returns results as soon as they are ready without preserving
-        # order, which is the most efficient. Only indices are passed now, not the
-        # whole dataset.
-        results_generator = pool.imap_unordered(worker_fn, all_batch_indices)
+    total_batches = len(data_loader)
 
-        pbar = tqdm(
-            results_generator,
-            total=total_batches,
-            unit="batch",
-            ncols=100,
-            disable=(rank != 0),
-            desc=f"rank{rank}",
-        )
-        for batch in pbar:
-            for key in state_norm_keys:
+    pbar = tqdm(
+        data_loader,
+        total=total_batches,
+        unit="batch",
+        ncols=100,
+        disable=(rank != 0),
+        desc=f"rank{rank}",
+    )
+    for batch in pbar:
+        for key in state_norm_keys:
+            if key in batch:
                 values = np.asarray(batch[key])
                 stats[key].update(values.reshape(-1, values.shape[-1]))
-            for key in acton_norm_keys:
-                values = np.asarray(batch[key]) if (not delta_norm[key] or norm_merge_chunk_dim) else np.asarray(batch[key].reshape(batch[key].shape[0], -1))
+        for key in action_norm_keys:
+            if key in batch:
+                values = np.asarray(batch[key]) if (not delta_norm.get(key, False) or norm_merge_chunk_dim) else np.asarray(batch[key].reshape(batch[key].shape[0], -1))
                 stats[key].update(values.reshape(-1, values.shape[-1]))
 
-    del pool
+    del data_loader
+    del subset_dataset
     del dataset
+
 
 def get_norm_stats(stats, delta_norm, chunk_size, norm_merge_chunk_dim=False):
     assert stats is not None
@@ -162,26 +146,22 @@ def get_norm_stats(stats, delta_norm, chunk_size, norm_merge_chunk_dim=False):
     return norm_stats
 
 
-def _init_dataset_worker(
-    args, data_names
-) -> 'LeRobotDataset':
-    
+def _init_dataset_worker(args, data_names):
     args.data.chunk_size = args.train.chunk_size
     dataset = build_vla_dataset(dataset_config=args.data, 
                                 model_config=None, 
                                 config=None, 
                                 processor=None, 
-                                do_nomalize = False,
-                                return_item = True,
-                                disabled_image_features = True)
-    
+                                do_nomalize=False,
+                                return_item=True,
+                                disabled_image_features=True,
+                                load_only_actions_and_states=True)
     return dataset
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     args = parse_args(Arguments)
 
-    # Distributed initialization: reuse train.sh + torchrun; RANK/WORLD_SIZE/LOCAL_RANK are already injected via env vars
     if args.train.world_size > 1 and not dist.is_initialized():
         torch.cuda.set_device(f"cuda:{args.train.local_rank}")
         dist.init_process_group(backend="nccl", timeout=timedelta(hours=2))
@@ -209,7 +189,6 @@ if __name__ == "__main__":
         data_names, repo_ids = [args.data.data_name], [args.data.train_path]
         args.data.data_name = 'multi'
 
-
     filename = '_'.join(list(set(data_names)))
     tmp_dir = f"tmp/"
     if rank == 0:
@@ -228,21 +207,31 @@ if __name__ == "__main__":
     os.remove(filename)
     assert len(list(set([' '.join(_datasets.state_features+_datasets.action_features) for _datasets in dataset._datasets])))==1
 
+    start = time.time()
+    iter_times = []
+    for i, data in enumerate(dataset):
+        end = time.time()
+        iter_times.append(end - start)
+        logger.info(f"Iter {i} time: {iter_times[-1]:.6f}s")
+        start = time.time()
+        if i >= 1:
+            break
+    if len(iter_times) >= 2:
+        logger.info(f"Total time for 2 iterations: {sum(iter_times):.6f}s, Average: {sum(iter_times)/2:.6f}s")
+
     state_norm_keys = dataset._datasets[0].state_features
-    acton_norm_keys = dataset._datasets[0].action_features
+    action_norm_keys = dataset._datasets[0].action_features
     delta_norm = dataset._datasets[0].feature_transform.action_subtract_state
-    stats = {key: normalize.RunningStats() for key in acton_norm_keys+state_norm_keys}
+    stats = {key: normalize.RunningStats() for key in action_norm_keys+state_norm_keys}
     chunk_size = args.data.chunk_size
     
     ratio = args.data.data_ratio_for_norm_compute
     print(f"Start computing norm stats with ratio={ratio}, num_workers={args.data.num_workers}")
-    compute_norm(dataset, args.train.micro_batch_size, stats, state_norm_keys, acton_norm_keys,
+    compute_norm(dataset._datasets[0].dataset, args.train.micro_batch_size, stats, state_norm_keys, action_norm_keys,
                  delta_norm, ratio=ratio, rank=rank, world_size=world_size,
                  num_workers=args.data.num_workers, norm_merge_chunk_dim=args.data.norm_merge_chunk_dim)
     print(f"End computing norm stats computed with ratio={ratio}")
 
-    # Cross-rank merge: each rank serializes its local stats and all_gather_object's
-    # them to all ranks; rank0 performs the actual merge and persists the result.
     if world_size > 1:
         local_state = {
             k: (v.get_state().model_dump() if v._count > 0 else None)

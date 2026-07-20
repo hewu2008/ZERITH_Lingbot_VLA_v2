@@ -61,6 +61,7 @@ class MultiVLADataset(Dataset):
         image_augment = False,
         use_depth_align=False,
         use_future_image=False,
+        load_only_actions_and_states=False,
     ):
         
         self.config = config
@@ -108,6 +109,7 @@ class MultiVLADataset(Dataset):
                         image_augment = image_augment,
                         use_depth_align = use_depth_align,
                         use_future_image=use_future_image,
+                        load_only_actions_and_states=load_only_actions_and_states,
                     )
                 if self.data_names[i] not in self.feature_transforms:
                     self.feature_transforms[self.data_names[i]] = dataset.feature_transform
