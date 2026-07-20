@@ -799,6 +799,7 @@ def main():
             future_video_current_dino = None
             future_video_current_rgb, future_video_target_rgb = None, None
             ignore_batch_num = 0
+            current_batch_images = None
             torch.cuda.synchronize()
             start_time = time.time()
             for micro_batch in micro_batches:
@@ -819,6 +820,8 @@ def main():
                         depth_start_time = time.time()
                         pil_images = micro_batch.pop('pil_images', None)
                         future_pil_images = micro_batch.pop('future_pil_images', None) if (use_future_depth or use_future_video) else None
+                        if current_batch_images is None:
+                            current_batch_images = {"pil_images": pil_images, "future_pil_images": future_pil_images}
                         with torch.autocast("cuda", dtype=torch.bfloat16):
                             depth_targets, cls_token = get_depth_target(depth_model_type, (moge_model, morgbd_model), pil_images)
                             if use_future_depth:
@@ -1144,16 +1147,25 @@ def main():
                 helper.empty_cache()
                 save_checkpoint_path = os.path.join(args.train.save_checkpoint_path, f"global_step_{global_step}")
                 
-                # param_to_name = {}
-                # for name, param in model.named_parameters():
-                #     param_to_name[name] = param
-                # for group in optimizer.state.values():
-                #     for param in group:
-                #         if param in param_to_name:
-                #             print(param_to_name[param])
-                #         else:
-                #             print("⚠️ Unidentified parameter in optimizer state")
-
+                if args.train.global_rank == 0 and current_batch_images is not None:
+                    images_dir = os.path.join(save_checkpoint_path, "batch_images")
+                    os.makedirs(images_dir, exist_ok=True)
+                    
+                    pil_images = current_batch_images.get("pil_images")
+                    future_pil_images = current_batch_images.get("future_pil_images")
+                    
+                    if pil_images is not None and isinstance(pil_images, dict):
+                        for cam_key, imgs in pil_images.items():
+                            if isinstance(imgs, list) and len(imgs) > 0 and isinstance(imgs[0], Image.Image):
+                                save_path = os.path.join(images_dir, f"current_{cam_key}_0.png")
+                                imgs[0].save(save_path)
+                    
+                    if future_pil_images is not None and isinstance(future_pil_images, dict):
+                        for cam_key, imgs in future_pil_images.items():
+                            if isinstance(imgs, list) and len(imgs) > 0 and isinstance(imgs[0], Image.Image):
+                                save_path = os.path.join(images_dir, f"future_{cam_key}_0.png")
+                                imgs[0].save(save_path)
+                
                 state = {
                     "model": model,
                     "ema": None,
