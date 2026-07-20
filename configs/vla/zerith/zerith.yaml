@@ -9,7 +9,7 @@ model:
 data:
   datasets_type: vla
   data_name: zerith
-  train_path: /home/jszn/hewu/dataset/hewu2008/pick_and_place_lingbot_vla_v2
+  train_path: /home/jszn/hewu/dataset/hewu2008/clear_the_bin_box_lingbot_vla_v2
   robot_config_root: ./configs/robot_configs
   joints:
     - arm.position: 14
@@ -24,7 +24,7 @@ data:
   prompt_type: global
   norm_type:
     - arm.position: meanstd
-    - effector.position: identity
+    - effector.position: meanstd
     - waist.position: meanstd
     - head.position: meanstd  
     - base.position: identity
