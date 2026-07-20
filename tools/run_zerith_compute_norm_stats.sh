@@ -2,7 +2,7 @@
 
 DATASET_PATH="/home/jszn/hewu/dataset/hewu2008/pick_and_place_lingbot_vla_v2"
 
-CUDA_VISIBLE_DEVICES=0 bash train.sh scripts/compute_norm_stats.py ./configs/vla/zerith/zerith.yaml \
+torchrun --nproc_per_node=1 scripts/compute_norm_stats.py ./configs/vla/zerith/zerith.yaml \
   --data.data_name zerith \
   --data.num_workers 8 \
   --data.train_path "$DATASET_PATH" \
