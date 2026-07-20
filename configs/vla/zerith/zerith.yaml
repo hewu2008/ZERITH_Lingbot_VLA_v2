@@ -31,6 +31,7 @@ data:
   num_workers: 8
   use_future_image: true
   image_augment: true
+  img_size: 256
 
 train:
   output_dir: /home/jszn/hewu/alg-product/ZERITH_Lingbot_VLA_V2/output
