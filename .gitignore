@@ -6,3 +6,4 @@ output/
 wandb/
 tmp/
 open_loop_test/
+open_loop_test_cs/

@@ -24,7 +24,6 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from utils.real_env_sdk import make_real_env
 from openpi_client import image_tools
 from robot_infer.msgpack_numpy import Packer, unpackb
 
@@ -226,6 +225,7 @@ def discover_feature_keys(dataset_item):
             state_keys.append(key)
         elif "action" in key:
             action_keys.append(key)
+    print(f"Discovered keys - images: {image_keys}, states: {state_keys}, actions: {action_keys}")
     return image_keys, state_keys, action_keys
 
 
@@ -518,4 +518,5 @@ if __name__ == "__main__":
             parser.error("--data_path is required for open-loop evaluation")
         open_loop_eval_main(args)
     else:
+        from utils.real_env_sdk import make_real_env
         main(args)
