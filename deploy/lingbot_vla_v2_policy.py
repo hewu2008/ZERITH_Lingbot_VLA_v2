@@ -28,6 +28,7 @@ import torch.nn.functional as F
 from lingbotvla.models.vla.lingbot_vla.configuration_lingbot_vla import LingbotVLAV2Config
 from lingbotvla.models.vla.lingbot_vla.modeling_lingbot_vla_v2 import LingbotVlaV2Policy
 from lingbotvla.models.vla.lingbot_vla.qwen3vl_in_vla import apply_lingbot_qwen3_vl_patch
+from lingbotvla.utils.lora_utils import add_lora_to_model
 
 from lingbotvla.data.vla_data.utils import FeatureTransform
 from lingbotvla.models import build_processor
@@ -188,6 +189,7 @@ class LingbotVLAv2Server:
     def __init__(
         self,
         path_to_pi_model="",
+        vla_base_model_path=None,
         robot_norm_path=None,
         adaptive_ensemble_alpha=0.1,
         action_ensemble_horizon=8,
@@ -209,7 +211,7 @@ class LingbotVLAv2Server:
         self.use_compile = use_compile
         apply_lingbot_qwen3_vl_patch()
 
-        self.vla = self.load_vla(path_to_pi_model)
+        self.vla = self.load_vla(path_to_pi_model, vla_base_model_path)
         if use_bf16:
             self.vla = self.vla.to(torch.bfloat16).cuda().eval()
         else:
@@ -269,7 +271,7 @@ class LingbotVLAv2Server:
         else:
             print("⚠️ Warning: 'vision_config' not found in qwen_config!")
 
-    def load_vla(self, path_to_pi_model) -> LingbotVlaV2Policy:
+    def load_vla(self, path_to_pi_model, vla_base_model_path=None) -> LingbotVlaV2Policy:
         print(f"loading model from: {path_to_pi_model}")
         
         # load training config
@@ -317,7 +319,27 @@ class LingbotVLAv2Server:
 
         self.vla = LingBotVlaV2InferencePolicy(config, eval=True)
 
-        self.load_model_weights(path_to_pi_model, strict=True)
+        if vla_base_model_path is not None:
+            print(f'Loading vla base model weights from: {vla_base_model_path}')
+            self.load_model_weights(vla_base_model_path, strict=True)
+        
+        if getattr(config, 'use_lora', False):
+            print('Adding LoRA adapter to model ... ')
+            lora_rank = getattr(config, 'lora_rank', 4)
+            lora_alpha = getattr(config, 'lora_alpha', 4)
+            lora_target_modules = getattr(config, 'lora_target_modules', "q,k,v,o,ffn.0,ffn.2")
+            lora_target_modules_support = getattr(config, 'lora_target_modules_support', ['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj'])
+            add_lora_to_model(
+                self.vla.model.qwenvl_with_expert.qwen_expert,
+                lora_rank=lora_rank,
+                lora_alpha=lora_alpha,
+                lora_target_modules=lora_target_modules,
+                lora_target_modules_support=lora_target_modules_support,
+            )
+            print('LoRA adapter added successfully')
+
+        print(f'Loading LoRA model weights from: {path_to_pi_model}')
+        self.load_model_weights(path_to_pi_model, strict=False)
         
         self.vla.feature_transform = None
         self.data_config = data_config

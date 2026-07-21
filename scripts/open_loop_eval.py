@@ -360,6 +360,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="open loop test")
 
     parser.add_argument('--model_path',  type=str, required=True)
+    parser.add_argument('--vla_base_model_path',  type=str, default=None, help='Path to the base pretrained model (lingbot-vla-v2-6b)')
 
     parser.add_argument('--robo_name',   type=str, required=True, help='robot type')
     parser.add_argument('--norm_path',   type=str, default=None, help='norm file path of training data')
@@ -395,6 +396,7 @@ if __name__ == "__main__":
     PolicyServer = load_policy_server(args.policy, args.model_path)
     model_kwargs = dict(
         path_to_pi_model=args.model_path,
+        vla_base_model_path=args.vla_base_model_path,
         robot_norm_path=args.norm_path,
         use_length=args.use_length,
         use_bf16=args.use_bf16,
