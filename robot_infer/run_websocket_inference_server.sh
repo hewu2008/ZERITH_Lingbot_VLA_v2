@@ -45,4 +45,4 @@ python robot_infer/websocket_inference_server.py \
     --robot_norm_path "$ROBOT_NORM_PATH" \
     --port "$PORT" \
     --use_bf16 true \
-    --use_compile true
+    --use_compile false
