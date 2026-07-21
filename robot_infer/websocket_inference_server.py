@@ -250,7 +250,7 @@ class LingbotVLAv2InferenceServer:
                 self.vla.model,
                 lora_rank=training_config['train'].get('lora_rank', 4),
                 lora_alpha=training_config['train'].get('lora_alpha', 4),
-                lora_target_modules=training_config['train'].get('lora_target_modules', 'q,k,v,o,ffn.0,ffn.2'),
+                lora_target_modules=training_config['train'].get('lora_target_modules', 'q,k,v,o,ffn.0,ffn.1,ffn.2'),
                 pretrained_lora_path=None,
                 lora_target_modules_support=training_config['train'].get('lora_target_modules_support', 'q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj').split(','),
             )
@@ -454,6 +454,7 @@ class LingbotVLAv2InferenceServer:
             result = dict(result)
             result["_normalized_actions"] = normalized_action
 
+        logger.info(f"result: {result}")
         self.global_step += 1
         return result
 
