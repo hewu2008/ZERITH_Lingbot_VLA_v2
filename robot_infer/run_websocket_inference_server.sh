@@ -10,6 +10,7 @@ ROBOT_NORM_PATH="${PROJECT_ROOT}/assets/norm_stats/zerith.json"
 PORT=55555
 
 export QWEN3VL_PATH="/home/jszn/hewu/model_zoo/Qwen3-VL-4B-Instruct/"
+export LINGBOT_BASE_MODEL_PATH="/home/jszn/hewu/model_zoo/lingbot-vla-v2-6b"
 
 echo "======================================"
 echo "Zerith WebSocket Inference Server"
@@ -40,6 +41,7 @@ echo ""
 cd "$PROJECT_ROOT"
 python robot_infer/websocket_inference_server.py \
     --model_path "$CHECKPOINT_DIR" \
+    --base_model_path "$LINGBOT_BASE_MODEL_PATH" \
     --robot_norm_path "$ROBOT_NORM_PATH" \
     --port "$PORT" \
     --use_bf16 true \
