@@ -135,6 +135,7 @@ class LingbotVLAv2InferenceServer:
     def __init__(
         self,
         path_to_pi_model="",
+        base_model_path=None,
         robot_norm_path=None,
         use_length=1,
         chunk_ret=True,
@@ -152,7 +153,7 @@ class LingbotVLAv2InferenceServer:
 
         apply_lingbot_qwen3_vl_patch()
 
-        self.vla = self.load_vla(path_to_pi_model)
+        self.vla = self.load_vla(path_to_pi_model, base_model_path)
         if use_bf16:
             self.vla = self.vla.to(torch.bfloat16).cuda().eval()
         else:
@@ -196,10 +197,10 @@ class LingbotVLAv2InferenceServer:
         if "vision_config" in config_dict:
             self.config.vision_config = qwen_config.vision_config
 
-    def load_vla(self, path_to_pi_model) -> LingbotVlaV2Policy:
+    def load_vla(self, path_to_pi_model, base_model_path=None) -> LingbotVlaV2Policy:
         logger.info(f"Loading model from: {path_to_pi_model}")
 
-        training_config_path = Path(path_to_pi_model).parent.parent / 'lingbotvla_cli.yaml'
+        training_config_path = Path(path_to_pi_model).parent.parent.parent / 'lingbotvla_cli.yaml'
         with open(training_config_path, 'r') as f:
             training_config = yaml.safe_load(f)
 
@@ -217,12 +218,12 @@ class LingbotVLAv2InferenceServer:
             model_name = 'qwen3vl'
         else:
             raise ValueError(f"Unsupported base model: {path_to_pi_model}")
-        base_model_path = os.environ.get('QWEN3VL_PATH', training_base_model) or BASE_MODEL_PATH[model_name]
-        config.tokenizer_path = base_model_path
+        qwen_base_model_path = os.environ.get('QWEN3VL_PATH', training_base_model) or BASE_MODEL_PATH[model_name]
+        config.tokenizer_path = qwen_base_model_path
         self.model_name = model_name
 
         self.config = config
-        qwen_config = AutoConfig.from_pretrained(base_model_path)
+        qwen_config = AutoConfig.from_pretrained(qwen_base_model_path)
         self.merge_qwen_config(qwen_config)
         config = self.config
 
@@ -230,12 +231,16 @@ class LingbotVLAv2InferenceServer:
             config.vocab_size = training_config['model']['vocab_size']
         config.use_cache = True
 
-        self.processor = build_processor(base_model_path)
+        self.processor = build_processor(qwen_base_model_path)
         self.language_tokenizer = self.processor.tokenizer
         data_config = SimpleNamespace(**training_config['data'])
 
         logger.info('Initializing model ... ')
         self.vla = LingBotVlaV2InferencePolicy(config, eval=True)
+
+        if base_model_path is not None:
+            logger.info(f'Loading base model weights from: {base_model_path}')
+            self.load_model_weights(base_model_path, strict=True)
 
         use_lora = training_config['train'].get('use_lora', False)
         if use_lora:
@@ -245,12 +250,13 @@ class LingbotVLAv2InferenceServer:
                 self.vla.model,
                 lora_rank=training_config['train'].get('lora_rank', 4),
                 lora_alpha=training_config['train'].get('lora_alpha', 4),
-                lora_target_modules=training_config['train'].get('lora_target_modules', 'q,k,v,o,ffn.0,ffn.1,ffn.2'),
+                lora_target_modules=training_config['train'].get('lora_target_modules', 'q,k,v,o,ffn.0,ffn.2'),
                 pretrained_lora_path=None,
                 lora_target_modules_support=training_config['train'].get('lora_target_modules_support', 'q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj').split(','),
             )
 
-        self.load_model_weights(path_to_pi_model, strict=True)
+        logger.info(f'Loading LoRA model weights from: {path_to_pi_model}')
+        self.load_model_weights(path_to_pi_model, strict=False)
 
         self.vla.feature_transform = None
         self.data_config = data_config
@@ -563,6 +569,13 @@ def main():
     )
 
     parser.add_argument(
+        "--base_model_path",
+        type=str,
+        default=None,
+        help="Path to the base pretrained model (lingbot-vla-v2-6b)"
+    )
+
+    parser.add_argument(
         "--use_length",
         type=int,
         default=50,
@@ -617,6 +630,7 @@ def main():
 
     model = LingbotVLAv2InferenceServer(
         args.model_path,
+        base_model_path=args.base_model_path,
         robot_norm_path=args.robot_norm_path,
         use_length=args.use_length,
         chunk_ret=args.chunk_ret,
