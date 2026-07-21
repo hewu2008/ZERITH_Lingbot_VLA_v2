@@ -169,8 +169,8 @@ def load_raw_episode_data(
         state = torch.cat(
             [
                 state_arm[:, :7],
-                state_effector[:, :-1],
                 state_arm[:, 7:],
+                state_effector[:, :-1],
                 state_effector[:, -1:],
                 state_waist[:],
                 state_head[:],
