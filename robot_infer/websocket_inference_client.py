@@ -29,7 +29,7 @@ from robot_infer.msgpack_numpy import Packer, unpackb
 logger = logging.getLogger(__name__)
 
 DT = 1 / 30
-DEFAULT_PROMPT = "grab all the ducks and put them into the basket"
+DEFAULT_PROMPT = "clear the bin box"
 
 
 def camera_aliases(camera_name: str) -> list[str]:
@@ -96,8 +96,12 @@ class WebsocketInferenceClient:
         return unpackb(response)
 
     @override
-    def reset(self) -> None:
-        pass
+    def reset(self, robo_name: str) -> None:
+        self.infer(dict(reset=True, robo_name=robo_name))
+
+    def close(self) -> None:
+        if hasattr(self, '_ws') and self._ws is not None:
+            self._ws.close()
 
     def compress_image(self, image, depth=False):
         if depth:
@@ -150,14 +154,12 @@ class ActionSmooth:
 
 
 def prepare_observation(observation, client: WebsocketInferenceClient, camera_names: list[str], prompt: str):
-    observation["state"] = observation["qpos"]
-    observation["prompt"] = prompt
+    observation["observation.state"] = observation["qpos"]
+    observation["task"] = prompt
 
     for camera_name in camera_names:
         image = get_camera_image(observation["images"], camera_name)
-        observation["images"][camera_name] = client.compress_image(
-            cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        )
+        observation[f"observation.images.{camera_name}"] = image
 
     return observation
 
@@ -205,6 +207,13 @@ def main(args):
     client = WebsocketInferenceClient(host=args.host, port=args.port)
     action_smooth = ActionSmooth(client, max_timesteps=args.num_steps)
 
+    reset_msg = {
+        'reset': True,
+        'robo_name': 'zerith',
+    }
+    logger.info("Sending reset message to initialize policy...")
+    client.infer(reset_msg)
+
     observation = env.reset().observation
     observation["state"] = observation["qpos"]
     warm_up(action_smooth, observation, client, args)
@@ -234,8 +243,8 @@ def main(args):
             action = np.copy(action_smooth.get_action(observation))
             observation = env.get_observation().observation
 
-            if action[15] > 0.7:
-                action[15] = 1.3
+            # if action[15] > 0.7:
+            #     action[15] = 1.3
 
             if data_action is not None:
                 action[-4:-2] = data_action[-4:-2]
@@ -274,6 +283,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--api_key", type=str, default=None, help="API key for authentication")
     parser.add_argument("--skip_pause", action="store_true", help="Skip the pause before starting inference")
+    parser.add_argument("--robo_name", type=str, default="zerith", help="Robot config name")
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', force=True)
     args = parser.parse_args()
