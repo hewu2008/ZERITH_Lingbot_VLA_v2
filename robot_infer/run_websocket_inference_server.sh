@@ -5,7 +5,7 @@ set -e
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 
-CHECKPOINT_DIR="${PROJECT_ROOT}/output/zerith_lora/checkpoints/global_step_500"
+CHECKPOINT_DIR="${PROJECT_ROOT}/output/zerith_lora/checkpoints/global_step_3500/hf_ckpt"
 ROBOT_NORM_PATH="${PROJECT_ROOT}/assets/norm_stats/zerith.json"
 PORT=55555
 
