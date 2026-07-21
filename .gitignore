@@ -5,3 +5,4 @@ lingbotvla.egg-info/
 output/
 wandb/
 tmp/
+open_loop_test/

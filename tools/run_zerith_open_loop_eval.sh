@@ -2,6 +2,9 @@
 
 export QWEN3_PATH=/home/jszn/hewu/model_zoo/Qwen3-VL-4B-Instruct
 
+# /home/jszn/hewu/alg-product/ZERITH_Lingbot_VLA_V2/output/zerith_lora/checkpoints/global_step_500/hf_ckpt
+# /home/jszn/hewu/model_zoo/lingbot-vla-v2-6b
+
 python scripts/open_loop_eval.py \
   --model_path /home/jszn/hewu/alg-product/ZERITH_Lingbot_VLA_V2/output/zerith_lora/checkpoints/global_step_500/hf_ckpt \
   --robo_name zerith \
