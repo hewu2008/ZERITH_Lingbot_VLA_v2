@@ -327,10 +327,10 @@ class LingbotVLAv2Server:
             print('Adding LoRA adapter to model ... ')
             lora_rank = getattr(config, 'lora_rank', 4)
             lora_alpha = getattr(config, 'lora_alpha', 4)
-            lora_target_modules = getattr(config, 'lora_target_modules', "q,k,v,o,ffn.0,ffn.2")
+            lora_target_modules = getattr(config, 'lora_target_modules', "q,k,v,o,ffn.0,ffn.1,ffn.2")
             lora_target_modules_support = getattr(config, 'lora_target_modules_support', ['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj'])
             add_lora_to_model(
-                self.vla.model.qwenvl_with_expert.qwen_expert,
+                self.vla.model,
                 lora_rank=lora_rank,
                 lora_alpha=lora_alpha,
                 lora_target_modules=lora_target_modules,
