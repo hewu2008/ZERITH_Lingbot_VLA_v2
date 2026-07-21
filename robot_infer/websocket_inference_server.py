@@ -250,7 +250,7 @@ class LingbotVLAv2InferenceServer:
                 lora_target_modules_support=training_config['train'].get('lora_target_modules_support', 'q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj').split(','),
             )
 
-        self.load_model_weights(path_to_pi_model, strict=False)
+        self.load_model_weights(path_to_pi_model, strict=True)
 
         self.vla.feature_transform = None
         self.data_config = data_config
