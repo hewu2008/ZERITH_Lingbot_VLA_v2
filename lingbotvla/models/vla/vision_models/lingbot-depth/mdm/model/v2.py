@@ -258,6 +258,42 @@ class MDMModel(nn.Module):
         
         return features, cls_token
 
+    def dec_depth(self, depth_feat_map, cls_token=None, num_tokens=256, resolution_level=3, img_h=224, img_w=224):
+        batch_size, _, feat_h, feat_w = depth_feat_map.shape
+        device, dtype = depth_feat_map.device, depth_feat_map.dtype
+
+        aspect_ratio = feat_w / feat_h
+
+        base_h, base_w = (num_tokens / aspect_ratio) ** 0.5, (num_tokens * aspect_ratio) ** 0.5
+        base_h, base_w = round(base_h), round(base_w)
+
+        features = depth_feat_map + cls_token[..., None, None] if cls_token is not None else depth_feat_map
+        features = [features, None, None, None, None]
+
+        for level in range(5):
+            uv = normalized_view_plane_uv(width=base_w * 2 ** level, height=base_h * 2 ** level, aspect_ratio=aspect_ratio, dtype=dtype, device=device)
+            uv = uv.permute(2, 0, 1).unsqueeze(0).expand(batch_size, -1, -1, -1)
+            if features[level] is None:
+                features[level] = uv
+            else:
+                features[level] = torch.concat([features[level], uv], dim=1)
+
+        features = self.neck(features)
+
+        if hasattr(self, 'depth_head'):
+            depth_reg = self.depth_head(features)[-1]
+            depth_reg = F.interpolate(depth_reg, (img_h, img_w), mode='bilinear', align_corners=False, antialias=False)
+            if self.remap_depth_out == 'exp':
+                depth_reg = depth_reg.exp().squeeze(1)
+            elif self.remap_depth_out == 'linear':
+                depth_reg = depth_reg.squeeze(1)
+            else:
+                raise ValueError(f"Invalid remap_depth_out: {self.remap_depth_out}")
+        else:
+            depth_reg = None
+
+        return {'depth_reg': depth_reg}
+
 
     @torch.inference_mode()
     def infer_feat(

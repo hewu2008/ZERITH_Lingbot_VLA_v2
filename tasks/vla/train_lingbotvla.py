@@ -44,6 +44,7 @@ from lingbotvla.models.vla.vision_models.module_utils import (
     get_depth_target,
     get_video_target,
     log_video,
+    log_depth,
 )
 from lingbotvla.models.vla.lingbot_vla.moe_load_balance import build_moe_load_balance_hook
 import gc
@@ -1130,6 +1131,8 @@ def main():
                 if use_depth_align:
                     if global_step % args.train.align_params['visual_steps'] == 0:
                         with torch.no_grad():
+                            if depth_model_type == 'MoRGBD':
+                                log_depth(morgbd_model, depth_preds, depth_targets, steps=global_step, config=args.train.align_params)
                             if use_future_video:
                                 log_video(
                                     future_video_preds,
