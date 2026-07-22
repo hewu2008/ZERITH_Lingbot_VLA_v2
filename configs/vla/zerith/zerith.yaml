@@ -77,7 +77,7 @@ train:
   lr_warmup_ratio: 0.05
   num_train_epochs: 29000
   micro_batch_size: 16
-  global_batch_size: 16
+  global_batch_size: 32
   gradient_accumulation_steps: 1
   max_steps: 40000
   ckpt_manager: dcp
