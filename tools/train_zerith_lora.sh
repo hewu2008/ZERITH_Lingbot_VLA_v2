@@ -33,6 +33,6 @@ python -m torch.distributed.run \
   --train.lora_rank=64 \
   --train.lora_alpha=64 \
   --train.freeze_non_lora=true \
-  --train.lr=1e-4 \
+  --train.lr=4e-4 \
   --train.output_dir output/zerith_lora \
   2>&1 | tee output/log_zerith_lora.txt
