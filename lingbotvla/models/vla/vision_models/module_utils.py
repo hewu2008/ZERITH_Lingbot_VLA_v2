@@ -133,29 +133,41 @@ def _resize_feature_image(image, height, width, config):
 
 def _feature_pair_to_images(pred_tokens, target_tokens, config):
     height, width = _tokens_grid_hw(target_tokens.shape[0])
-    pair = torch.cat([target_tokens, pred_tokens], dim=0).float()
-    pair = torch.nan_to_num(pair, nan=0.0, posinf=0.0, neginf=0.0)
-    centered = pair - pair.mean(dim=0, keepdim=True)
+    
+    target_tokens = torch.nan_to_num(target_tokens.float(), nan=0.0, posinf=0.0, neginf=0.0)
+    pred_tokens = torch.nan_to_num(pred_tokens.float(), nan=0.0, posinf=0.0, neginf=0.0)
+    
+    target_centered = target_tokens - target_tokens.mean(dim=0, keepdim=True)
+    pred_centered = pred_tokens - target_tokens.mean(dim=0, keepdim=True)
 
     try:
-        _, _, vh = torch.linalg.svd(centered, full_matrices=False)
-        projected = centered @ vh[: min(3, vh.shape[0])].T
-    except RuntimeError:
-        projected = centered[:, : min(3, centered.shape[-1])]
+        _, s, vh = torch.linalg.svd(target_centered, full_matrices=False)
+        proj_basis = vh[: min(3, vh.shape[0])].T
+        target_projected = target_centered @ proj_basis
+        pred_projected = pred_centered @ proj_basis
+    except RuntimeError as e:
+        target_projected = target_centered[:, : min(3, target_centered.shape[-1])]
+        pred_projected = pred_centered[:, : min(3, pred_centered.shape[-1])]
 
-    if projected.shape[-1] < 3:
-        pad = torch.zeros(projected.shape[0], 3 - projected.shape[-1], dtype=projected.dtype)
-        projected = torch.cat([projected, pad], dim=-1)
+    if target_projected.shape[-1] < 3:
+        pad = torch.zeros(target_projected.shape[0], 3 - target_projected.shape[-1], dtype=target_projected.dtype)
+        target_projected = torch.cat([target_projected, pad], dim=-1)
+        pred_projected = torch.cat([pred_projected, pad], dim=-1)
 
-    min_val = projected.amin(dim=0, keepdim=True)
-    max_val = projected.amax(dim=0, keepdim=True)
-    rgb = (projected - min_val) / (max_val - min_val).clamp_min(1e-6)
-    rgb = (rgb * 255.0).clamp(0, 255).to(torch.uint8).cpu().numpy()
+    combined = torch.cat([target_projected, pred_projected], dim=0)
+    min_val = combined.amin(dim=0, keepdim=True)
+    max_val = combined.amax(dim=0, keepdim=True)
+    
+    target_rgb = (target_projected - min_val) / (max_val - min_val).clamp_min(1e-6)
+    pred_rgb = (pred_projected - min_val) / (max_val - min_val).clamp_min(1e-6)
+    
+    target_rgb = (target_rgb * 255.0).clamp(0, 255).to(torch.uint8).cpu().numpy()
+    pred_rgb = (pred_rgb * 255.0).clamp(0, 255).to(torch.uint8).cpu().numpy()
 
-    target_rgb = rgb[: target_tokens.shape[0]].reshape(height, width, 3)
-    pred_rgb = rgb[target_tokens.shape[0] :].reshape(height, width, 3)
+    target_rgb = target_rgb.reshape(height, width, 3)
+    pred_rgb = pred_rgb.reshape(height, width, 3)
 
-    diff = (pred_tokens.float() - target_tokens.float()).abs().mean(dim=-1)
+    diff = (pred_tokens - target_tokens).abs().mean(dim=-1)
     diff = torch.nan_to_num(diff, nan=0.0, posinf=0.0, neginf=0.0)
     diff = (diff - diff.min()) / (diff.max() - diff.min()).clamp_min(1e-6)
     cmap = matplotlib.colormaps.get_cmap("magma")
@@ -400,6 +412,7 @@ def get_video_target(video_teacher, pil_images, future_pil_images, config, effec
         kwargs["fps"] = effective_fps
     with torch.no_grad():
         video_target = video_teacher.get_future_feature(video, **kwargs)
+    
     if return_cls:
         if not return_current:
             patch_target, cls_target = video_target
