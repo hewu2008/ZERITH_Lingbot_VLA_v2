@@ -97,11 +97,10 @@ def _rgb_range(images):
     return rgb_min, rgb_max
 
 def _rgb_to_unit_float(images):
-    # is_uint8 = images.dtype == torch.uint8
     images = images.float()
-    # _, rgb_max = _rgb_range(images)
-    # if is_uint8 or rgb_max > 1.0 + 1e-6:
-    images = images / 255.0
+    max_val = images.max()
+    if max_val > 1.0 + 1e-6:
+        images = images / 255.0
     return images
 
 def _video_config(config):

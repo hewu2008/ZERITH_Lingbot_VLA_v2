@@ -151,4 +151,4 @@ train:
       cls_loss_weight: 0.2
       log_max_samples: 32
       log_scale: 16
-    visual_steps: 100
+    visual_steps: 10
