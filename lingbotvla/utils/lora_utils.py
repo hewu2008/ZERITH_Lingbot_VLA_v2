@@ -112,3 +112,32 @@ def load_state_dict_from_bin(file_path, torch_dtype=None):
             if isinstance(state_dict[i], torch.Tensor):
                 state_dict[i] = state_dict[i].to(torch_dtype)
     return state_dict
+
+
+def extract_lora_state_dict(state_dict: dict) -> dict:
+    lora_state_dict = {}
+    for key, value in state_dict.items():
+        if "lora_A" in key or "lora_B" in key:
+            lora_state_dict[key] = value
+    return lora_state_dict
+
+
+def save_lora_weights_only(
+    model: nn.Module,
+    output_path: str,
+    save_dtype: torch.dtype = torch.float32,
+):
+    import os
+    os.makedirs(output_path, exist_ok=True)
+    
+    lora_state_dict = {}
+    for name, param in model.named_parameters():
+        if "lora_A" in name or "lora_B" in name:
+            lora_state_dict[name] = param.data.detach().cpu().to(save_dtype)
+    
+    from safetensors.torch import save_file
+    save_file(lora_state_dict, os.path.join(output_path, "lora_weights.safetensors"))
+    
+    print(f"LoRA weights saved to {output_path}")
+    print(f"Total LoRA parameters: {sum(p.numel() for p in lora_state_dict.values())}")
+    print(f"Number of LoRA keys: {len(lora_state_dict)}")
