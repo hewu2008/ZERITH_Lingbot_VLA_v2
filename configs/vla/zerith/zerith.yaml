@@ -35,7 +35,7 @@ data:
 
 train:
   output_dir: /data/4T-1/hewu/alg-product/ZERITH_Lingbot_VLA_V2/output
-  moe_monitor_interval: 1000
+  moe_monitor_interval: 10000000
   enable_gradient_checkpointing: true
   precompute_grid_thw: true
   vlm_causal: true
