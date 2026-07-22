@@ -260,7 +260,12 @@ class MDMModel(nn.Module):
 
     def dec_depth(self, depth_feat_map, cls_token=None, num_tokens=256, resolution_level=3, img_h=224, img_w=224):
         batch_size, _, feat_h, feat_w = depth_feat_map.shape
-        device, dtype = depth_feat_map.device, depth_feat_map.dtype
+        device = depth_feat_map.device
+        model_dtype = self.dtype
+
+        depth_feat_map = depth_feat_map.to(dtype=model_dtype)
+        if cls_token is not None:
+            cls_token = cls_token.to(dtype=model_dtype)
 
         aspect_ratio = feat_w / feat_h
 
@@ -271,7 +276,7 @@ class MDMModel(nn.Module):
         features = [features, None, None, None, None]
 
         for level in range(5):
-            uv = normalized_view_plane_uv(width=base_w * 2 ** level, height=base_h * 2 ** level, aspect_ratio=aspect_ratio, dtype=dtype, device=device)
+            uv = normalized_view_plane_uv(width=base_w * 2 ** level, height=base_h * 2 ** level, aspect_ratio=aspect_ratio, dtype=model_dtype, device=device)
             uv = uv.permute(2, 0, 1).unsqueeze(0).expand(batch_size, -1, -1, -1)
             if features[level] is None:
                 features[level] = uv
