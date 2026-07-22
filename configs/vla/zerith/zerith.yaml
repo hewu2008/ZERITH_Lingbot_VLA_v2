@@ -71,8 +71,8 @@ train:
   max_action_dim: 55
   max_state_dim: 55
   optimizer: adamw
-  lr: 5.0e-5
-  lr_min: 5e-6
+  lr: 1e-4
+  lr_min: 1e-5
   lr_decay_style: cosine
   lr_warmup_ratio: 0.05
   num_train_epochs: 29000
@@ -151,4 +151,4 @@ train:
       cls_loss_weight: 0.2
       log_max_samples: 32
       log_scale: 16
-    visual_steps: 10
+    visual_steps: 4000
