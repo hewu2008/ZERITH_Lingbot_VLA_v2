@@ -748,6 +748,7 @@ def main():
                     logger.info_rank0(f"LR changed from {saved_lr_scheduler['base_lrs'][0]} to {args.train.lr}, reinitializing scheduler")
                     for pg in optimizer.param_groups:
                         pg['lr'] = args.train.lr
+                    logger.info_rank0(f"Optimizer param_groups lr after update: {[pg['lr'] for pg in optimizer.param_groups]}")
                     lr_scheduler = build_lr_scheduler(
                         optimizer,
                         train_steps=total_train_steps,
@@ -758,7 +759,9 @@ def main():
                         lr_warmup_ratio=args.train.lr_warmup_ratio,
                         lr_start=args.train.lr_start,
                     )
+                    logger.info_rank0(f"Scheduler base_lrs: {lr_scheduler.base_lrs}")
                     lr_scheduler.step(global_step)
+                    logger.info_rank0(f"Scheduler step {global_step}, last_lr: {lr_scheduler.get_last_lr()}")
                 else:
                     lr_scheduler.load_state_dict(saved_lr_scheduler)
                 if start_step > 0 and args.train.resume_dataloader_state:
