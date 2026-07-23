@@ -144,7 +144,7 @@ train:
       mse_loss_weight: 1.0
       use_patch_loss: true
       use_current_patch_loss: true
-      use_cosine_loss: false
+      use_cosine_loss: true
       cosine_loss_weight: 0.2
       use_cls_loss: false
       cls_loss_type: mse
