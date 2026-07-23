@@ -1157,17 +1157,25 @@ def main():
                     pil_images = current_batch_images.get("pil_images")
                     future_pil_images = current_batch_images.get("future_pil_images")
                     
-                    if pil_images is not None and isinstance(pil_images, dict):
-                        for cam_key, imgs in pil_images.items():
-                            if isinstance(imgs, list) and len(imgs) > 0 and isinstance(imgs[0], Image.Image):
-                                save_path = os.path.join(images_dir, f"current_{cam_key}_0.png")
-                                imgs[0].save(save_path)
+                    if pil_images is not None and isinstance(pil_images, torch.Tensor):
+                        img = pil_images[0].cpu().numpy()
+                        if img.ndim == 3 and img.shape[0] == 3:
+                            img = img.transpose(1, 2, 0)
+                        img = (img - img.min()) / (img.max() - img.min() + 1e-8) * 255
+                        img = img.astype(np.uint8)
+                        pil_img = Image.fromarray(img)
+                        save_path = os.path.join(images_dir, "current_0.png")
+                        pil_img.save(save_path)
                     
-                    if future_pil_images is not None and isinstance(future_pil_images, dict):
-                        for cam_key, imgs in future_pil_images.items():
-                            if isinstance(imgs, list) and len(imgs) > 0 and isinstance(imgs[0], Image.Image):
-                                save_path = os.path.join(images_dir, f"future_{cam_key}_0.png")
-                                imgs[0].save(save_path)
+                    if future_pil_images is not None and isinstance(future_pil_images, torch.Tensor):
+                        img = future_pil_images[0].cpu().numpy()
+                        if img.ndim == 3 and img.shape[0] == 3:
+                            img = img.transpose(1, 2, 0)
+                        img = (img - img.min()) / (img.max() - img.min() + 1e-8) * 255
+                        img = img.astype(np.uint8)
+                        pil_img = Image.fromarray(img)
+                        save_path = os.path.join(images_dir, "future_0.png")
+                        pil_img.save(save_path)
                 
                 state = {
                     "model": model,
