@@ -35,8 +35,8 @@ python -m torch.distributed.run \
   --train.lora_rank=64 \
   --train.lora_alpha=64 \
   --train.freeze_non_lora=true \
-  --train.lr=4e-4 \
-  --train.lr_min=1e-5 \
+  --train.lr=1e-4 \
+  --train.lr_min=5e-6 \
   --train.micro_batch_size=16 \
   --train.global_batch_size=32 \
   --train.gradient_accumulation_steps=1 \

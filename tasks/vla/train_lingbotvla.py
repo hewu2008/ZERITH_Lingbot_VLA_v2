@@ -743,7 +743,22 @@ def main():
                 global_step = state["extra_state"]["global_step"]
                 start_epoch = global_step // args.train.train_steps
                 start_step = global_step % args.train.train_steps
-                lr_scheduler.load_state_dict(state["extra_state"]["lr_scheduler"])
+                saved_lr_scheduler = state["extra_state"]["lr_scheduler"]
+                if saved_lr_scheduler['base_lrs'][0] != args.train.lr:
+                    logger.info_rank0(f"LR changed from {saved_lr_scheduler['base_lrs'][0]} to {args.train.lr}, reinitializing scheduler")
+                    lr_scheduler = build_lr_scheduler(
+                        optimizer,
+                        train_steps=total_train_steps,
+                        lr=args.train.lr,
+                        lr_min=args.train.lr_min,
+                        lr_decay_style=args.train.lr_decay_style,
+                        lr_decay_ratio=args.train.lr_decay_ratio,
+                        lr_warmup_ratio=args.train.lr_warmup_ratio,
+                        lr_start=args.train.lr_start,
+                    )
+                    lr_scheduler.step(global_step)
+                else:
+                    lr_scheduler.load_state_dict(saved_lr_scheduler)
                 if start_step > 0 and args.train.resume_dataloader_state:
                     train_dataloader.load_state_dict(state["extra_state"]["train_dataloader"])
                 environ_meter.load_state_dict(state["extra_state"]["environ_meter"])
