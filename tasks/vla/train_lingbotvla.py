@@ -512,27 +512,6 @@ def main():
         if args.train.data_parallel_mode == "fsdp1":
             fsdp_kwargs["use_orig_params"] = True
 
-    model = build_parallelize_model(
-        model,
-        enable_full_shard=args.train.enable_full_shard,
-        enable_mixed_precision=args.train.enable_mixed_precision,
-        enable_fp32=args.train.enable_fp32,
-        enable_gradient_checkpointing=args.train.enable_gradient_checkpointing,
-        init_device=args.train.init_device,
-        enable_fsdp_offload=args.train.enable_fsdp_offload,
-        fsdp_kwargs=fsdp_kwargs,
-        basic_modules=model._no_split_modules if args.train.module_fsdp_enable else None,
-        enable_reentrant=args.train.enable_reentrant,
-        enable_forward_prefetch=args.train.enable_forward_prefetch,
-        fsdp_llm_blocks=False,
-        ignore_norm=False,
-        use_depth_align=use_depth_align,
-        split_fused_experts_from_decoder_fsdp=args.train.split_fused_experts_from_decoder_fsdp,
-        vlm_fsdp=args.train.vlm_fsdp,
-        use_future_image=args.data.use_future_image,
-    )
-    logger.info_rank0(model)
-
     if args.train.use_lora:
         logger.info_rank0("Applying LoRA to model...")
         if args.train.freeze_non_lora:
@@ -571,6 +550,27 @@ def main():
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         total_params = sum(p.numel() for p in model.parameters())
         logger.info_rank0(f"LoRA enabled: {trainable_params}/{total_params} parameters ({trainable_params/total_params*100:.2f}%) are trainable")
+
+    model = build_parallelize_model(
+        model,
+        enable_full_shard=args.train.enable_full_shard,
+        enable_mixed_precision=args.train.enable_mixed_precision,
+        enable_fp32=args.train.enable_fp32,
+        enable_gradient_checkpointing=args.train.enable_gradient_checkpointing,
+        init_device=args.train.init_device,
+        enable_fsdp_offload=args.train.enable_fsdp_offload,
+        fsdp_kwargs=fsdp_kwargs,
+        basic_modules=model._no_split_modules if args.train.module_fsdp_enable else None,
+        enable_reentrant=args.train.enable_reentrant,
+        enable_forward_prefetch=args.train.enable_forward_prefetch,
+        fsdp_llm_blocks=False,
+        ignore_norm=False,
+        use_depth_align=use_depth_align,
+        split_fused_experts_from_decoder_fsdp=args.train.split_fused_experts_from_decoder_fsdp,
+        vlm_fsdp=args.train.vlm_fsdp,
+        use_future_image=args.data.use_future_image,
+    )
+    logger.info_rank0(model)
 
     if args.train.use_compile:
         model = torch.compile(model)
