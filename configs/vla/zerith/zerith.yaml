@@ -95,8 +95,8 @@ train:
   align_params:
     mode: 'query'
     num_task_tokens: 8
-    depth_loss_weight: 1
-    future_depth_loss_weight: 1
+    depth_loss_weight: 0.004
+    future_depth_loss_weight: 0.004
     use_future_video: true
     llm:
       dim_out: 2560
@@ -138,7 +138,7 @@ train:
       ff_mult: 1
       num_backbone_tokens: 256
       dim_out: 1024
-      future_video_loss_weight: 1
+      future_video_loss_weight: 0.004
       use_smooth_l1_loss: false
       use_mse_loss: true
       mse_loss_weight: 1.0
