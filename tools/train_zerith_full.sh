@@ -29,6 +29,7 @@ python -m torch.distributed.run \
   --master-addr=$MASTER_ADDR \
   --master-port=$MASTER_PORT \
   tasks/vla/train_lingbotvla.py ./configs/vla/zerith/zerith.yaml \
+  --train.enable_fp32=true \
   --train.lr=5e-5 \
   --train.lr_min=1e-6 \
   --train.micro_batch_size=8 \
