@@ -31,8 +31,8 @@ python -m torch.distributed.run \
   tasks/vla/train_lingbotvla.py ./configs/vla/zerith/zerith.yaml \
   --train.lr=5e-5 \
   --train.lr_min=1e-6 \
-  --train.micro_batch_size=8 \
-  --train.global_batch_size=16 \
+  --train.micro_batch_size=4 \
+  --train.global_batch_size=8 \
   --train.gradient_accumulation_steps=1 \
   --train.max_steps=40000 \
   --train.save_steps=1000 \
