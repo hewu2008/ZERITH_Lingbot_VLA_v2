@@ -29,6 +29,7 @@ python -m torch.distributed.run \
   --master-addr=$MASTER_ADDR \
   --master-port=$MASTER_PORT \
   tasks/vla/train_lingbotvla.py ./configs/vla/zerith/zerith.yaml \
+  --train.enable_gradient_checkpointing=false \
   --train.enable_fp32=true \
   --train.use_lora=true \
   --train.lora_rank=64 \

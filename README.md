@@ -164,10 +164,17 @@ bash tools/train_zerith_lora.sh
 ```
 
 This script trains with the following LoRA settings:
-- `lora_rank=8`: Low-rank dimension
-- `lora_alpha=8`: Scaling factor
+- `lora_rank=64`: Low-rank dimension
+- `lora_alpha=64`: Scaling factor
 - `freeze_non_lora=true`: Freeze all non-LoRA parameters
-- `lr=1e-4`: Higher learning rate for LoRA
+- `lr=4e-4`: Higher learning rate for LoRA
+
+When `freeze_non_lora=true`, the following alignment-related parameters are still kept trainable:
+- Query tokens: `depth_align_embs`, `future_depth_align_embs`, `current_video_align_embs`, `future_video_align_embs`
+- Alignment heads: `depth_align_head`, `future_depth_align_head`, `current_video_align_head`, `future_video_align_head`
+- Shared projection layers: `current_shared_task_proj`, `future_shared_task_proj`
+
+These parameters are task-specific components that need training to enable depth and video alignment losses.
 
 To customize LoRA parameters, edit [tools/train_zerith_lora.sh](tools/train_zerith_lora.sh) or pass command-line arguments:
 
