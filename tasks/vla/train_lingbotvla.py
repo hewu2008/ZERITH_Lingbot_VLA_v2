@@ -1150,33 +1150,6 @@ def main():
                 helper.empty_cache()
                 save_checkpoint_path = os.path.join(args.train.save_checkpoint_path, f"global_step_{global_step}")
                 
-                if args.train.global_rank == 0 and current_batch_images is not None:
-                    images_dir = os.path.join(save_checkpoint_path, "batch_images")
-                    os.makedirs(images_dir, exist_ok=True)
-                    
-                    pil_images = current_batch_images.get("pil_images")
-                    future_pil_images = current_batch_images.get("future_pil_images")
-                    
-                    if pil_images is not None and isinstance(pil_images, torch.Tensor):
-                        img = pil_images[0].cpu().numpy()
-                        if img.ndim == 3 and img.shape[0] == 3:
-                            img = img.transpose(1, 2, 0)
-                        img = (img - img.min()) / (img.max() - img.min() + 1e-8) * 255
-                        img = img.astype(np.uint8)
-                        pil_img = Image.fromarray(img)
-                        save_path = os.path.join(images_dir, "current_0.png")
-                        pil_img.save(save_path)
-                    
-                    if future_pil_images is not None and isinstance(future_pil_images, torch.Tensor):
-                        img = future_pil_images[0].cpu().numpy()
-                        if img.ndim == 3 and img.shape[0] == 3:
-                            img = img.transpose(1, 2, 0)
-                        img = (img - img.min()) / (img.max() - img.min() + 1e-8) * 255
-                        img = img.astype(np.uint8)
-                        pil_img = Image.fromarray(img)
-                        save_path = os.path.join(images_dir, "future_0.png")
-                        pil_img.save(save_path)
-                
                 state = {
                     "model": model,
                     "ema": None,
