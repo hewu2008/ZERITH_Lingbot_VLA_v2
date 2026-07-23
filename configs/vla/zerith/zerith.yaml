@@ -55,7 +55,7 @@ train:
   routed_scaling_factor: 4.0
   use_shared_expert_gate: false
   use_moe_expert_lr: true
-  loss_type: L1_fm
+  loss_type: fm
   data_parallel_mode: fsdp2
   enable_full_shard: false
   module_fsdp_enable: true
