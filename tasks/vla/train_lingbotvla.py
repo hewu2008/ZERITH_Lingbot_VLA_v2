@@ -746,6 +746,8 @@ def main():
                 saved_lr_scheduler = state["extra_state"]["lr_scheduler"]
                 if saved_lr_scheduler['base_lrs'][0] != args.train.lr:
                     logger.info_rank0(f"LR changed from {saved_lr_scheduler['base_lrs'][0]} to {args.train.lr}, reinitializing scheduler")
+                    for pg in optimizer.param_groups:
+                        pg['lr'] = args.train.lr
                     lr_scheduler = build_lr_scheduler(
                         optimizer,
                         train_steps=total_train_steps,
