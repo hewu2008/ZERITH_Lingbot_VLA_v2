@@ -367,8 +367,30 @@ def open_loop_eval_main(args):
                 pred_action_chunk = np.concatenate(pred_action_chunk, axis=-1)
                 pred_action_across_time.append(pred_action_chunk)
 
+                align_len = min(gt_action_chunk.shape[0], pred_action_chunk.shape[0])
+                mae_chunk = np.mean(np.abs(gt_action_chunk[:align_len] - pred_action_chunk[:align_len]))
+                
+                logger.info(f"Trajectory {traj_id}: step {count}/{args.max_infer_time}, data_id {data_id}")
+                logger.info(f"  gt_action_chunk shape: {gt_action_chunk.shape}")
+                logger.info(f"  pred_action_chunk shape: {pred_action_chunk.shape}")
+                logger.info(f"  gt_action_chunk mean: {np.mean(gt_action_chunk):.6f}, std: {np.std(gt_action_chunk):.6f}")
+                logger.info(f"  pred_action_chunk mean: {np.mean(pred_action_chunk):.6f}, std: {np.std(pred_action_chunk):.6f}")
+                logger.info(f"  MAE (per-step): {mae_chunk:.6f}")
+                
+                logger.info(f"  --- 50 steps action details ---")
+                for t in range(align_len):
+                    gt_step = gt_action_chunk[t]
+                    pred_step = pred_action_chunk[t]
+                    mae_step = np.mean(np.abs(gt_step - pred_step))
+                    gt_str = "[" + ", ".join(f"{v:.4f}" for v in gt_step) + "]"
+                    pred_str = "[" + ", ".join(f"{v:.4f}" for v in pred_step) + "]"
+                    logger.info(f"  t={t:2d}: gt={gt_str}")
+                    logger.info(f"        pred={pred_str}")
+                    logger.info(f"        MAE={mae_step:.6f}")
+            else:
+                logger.info(f"Trajectory {traj_id}: step {count}/{args.max_infer_time}, data_id {data_id} - no pred action")
+
             count += 1
-            logger.info(f"Trajectory {traj_id}: step {count}/{args.max_infer_time}, data_id {data_id}")
 
         if not gt_action_across_time or not pred_action_across_time:
             logger.warning(f"No data for trajectory {traj_id}")
