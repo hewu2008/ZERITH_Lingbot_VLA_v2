@@ -373,8 +373,6 @@ def open_loop_eval_main(args):
                 for t in range(pred_action_chunk.shape[0]):
                     action_step = pred_action_chunk[t].copy()
                     
-                    action_step[np.abs(action_step) < 0.015] = 0.0
-                    
                     if last_executed_action is not None:
                         action_delta = action_step - last_executed_action
                         clamped_delta = np.clip(action_delta, -0.01, 0.01)
@@ -397,20 +395,20 @@ def open_loop_eval_main(args):
                 logger.info(f"  MAE (raw): {mae_chunk:.6f}")
                 logger.info(f"  MAE (processed): {mae_processed_chunk:.6f}")
                 
-                logger.info(f"  --- 50 steps action details ---")
-                for t in range(align_len):
-                    gt_step = gt_action_chunk[t]
-                    pred_step = pred_action_chunk[t]
-                    processed_step = processed_action_chunk[t]
-                    mae_step = np.mean(np.abs(gt_step - pred_step))
-                    mae_processed_step = np.mean(np.abs(gt_step - processed_step))
-                    gt_str = "[" + ", ".join(f"{v:.4f}" for v in gt_step) + "]"
-                    pred_str = "[" + ", ".join(f"{v:.4f}" for v in pred_step) + "]"
-                    processed_str = "[" + ", ".join(f"{v:.4f}" for v in processed_step) + "]"
-                    logger.info(f"  t={t:2d}: gt={gt_str}")
-                    logger.info(f"        pred={pred_str}")
-                    logger.info(f"        processed={processed_str}")
-                    logger.info(f"        MAE(raw)={mae_step:.6f}, MAE(processed)={mae_processed_step:.6f}")
+                # logger.info(f"  --- 50 steps action details ---")
+                # for t in range(align_len):
+                #     gt_step = gt_action_chunk[t]
+                #     pred_step = pred_action_chunk[t]
+                #     processed_step = processed_action_chunk[t]
+                #     mae_step = np.mean(np.abs(gt_step - pred_step))
+                #     mae_processed_step = np.mean(np.abs(gt_step - processed_step))
+                #     gt_str = "[" + ", ".join(f"{v:.4f}" for v in gt_step) + "]"
+                #     pred_str = "[" + ", ".join(f"{v:.4f}" for v in pred_step) + "]"
+                #     processed_str = "[" + ", ".join(f"{v:.4f}" for v in processed_step) + "]"
+                #     logger.info(f"  t={t:2d}: gt={gt_str}")
+                #     logger.info(f"        pred={pred_str}")
+                #     logger.info(f"        processed={processed_str}")
+                #     logger.info(f"        MAE(raw)={mae_step:.6f}, MAE(processed)={mae_processed_step:.6f}")
             else:
                 logger.info(f"Trajectory {traj_id}: step {count}/{args.max_infer_time}, data_id {data_id} - no pred action")
 
