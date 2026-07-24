@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 DT = 1 / 30
 DEFAULT_PROMPT = "clear the bin box"
 
-ACTION_DEAD_ZONE_THRESHOLD = 0.01
+ACTION_DEAD_ZONE_THRESHOLD = 0.000
 ACTION_LIMIT_THRESHOLD = 0.02
 GRIPPER_INDICES = [7, 15]
 
