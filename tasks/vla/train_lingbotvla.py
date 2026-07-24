@@ -537,6 +537,8 @@ def main():
                 "future_video_align_head",
                 "current_shared_task_proj",
                 "future_shared_task_proj",
+                "state_proj",
+                "action_in_proj",
                 "action_out_proj",
             ]
         enabled_align_params = []

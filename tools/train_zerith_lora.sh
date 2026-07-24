@@ -32,16 +32,16 @@ python -m torch.distributed.run \
   --train.enable_gradient_checkpointing=false \
   --train.enable_fp32=true \
   --train.use_lora=true \
-  --train.lora_rank=64 \
-  --train.lora_alpha=64 \
+  --train.lora_rank=8 \
+  --train.lora_alpha=8 \
   --train.freeze_non_lora=true \
   --train.lr=1e-4 \
   --train.lr_min=5e-6 \
-  --train.micro_batch_size=16 \
-  --train.global_batch_size=32 \
+  --train.micro_batch_size=1 \
+  --train.global_batch_size=8 \
   --train.gradient_accumulation_steps=1 \
   --train.max_steps=40000 \
-  --train.save_steps=1000 \
+  --train.save_steps=4000 \
   --train.enable_resume=true \
   --train.output_dir output/zerith_lora \
   2>&1 | tee output/log_zerith_lora.txt
