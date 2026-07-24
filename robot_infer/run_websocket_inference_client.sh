@@ -9,12 +9,12 @@ ROBO_NAME="zerith"
 HOST="172.31.200.250"
 PORT=55555
 PROMPT="clear the bin box"
-NUM_STEPS=30
+NUM_STEPS=1200
 WARMUP_STEPS=2
 CAMERA_NAMES="cam_high cam_left_wrist cam_right_wrist"
 SKIP_PAUSE=""
 
-OPEN_LOOP_EVAL="false"
+OPEN_LOOP_EVAL=""
 DATA_PATH="/home/jszn/hewu/dataset/hewu2008/1_clear_the_bin_box_20260721"
 TRAJ_IDS="0"
 CHUNK_SIZE=50
