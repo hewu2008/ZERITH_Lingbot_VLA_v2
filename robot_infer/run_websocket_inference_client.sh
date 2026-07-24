@@ -6,15 +6,15 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 
 ROBO_NAME="zerith"
-HOST="127.0.0.1"
+HOST="172.31.200.250"
 PORT=55555
 PROMPT="clear the bin box"
-NUM_STEPS=5
+NUM_STEPS=30
 WARMUP_STEPS=2
 CAMERA_NAMES="cam_high cam_left_wrist cam_right_wrist"
 SKIP_PAUSE=""
 
-OPEN_LOOP_EVAL="true"
+OPEN_LOOP_EVAL="false"
 DATA_PATH="/home/jszn/hewu/dataset/hewu2008/1_clear_the_bin_box_20260721"
 TRAJ_IDS="0"
 CHUNK_SIZE=50
@@ -67,7 +67,7 @@ else
         --num_steps "$NUM_STEPS" \
         --warmup_steps "$WARMUP_STEPS" \
         --camera_names $CAMERA_NAMES \
-        --init_hdf5 /home/jszn/hewu/dataset/hdf5/1_clear_the_bin_box_20260721/63ae7bef9a9047709fd19d293bc4a1c6/episode.hdf5 \
+        --init_hdf5 assets/episode.hdf5 \
         --init_frame_idx 0 \
         $SKIP_PAUSE
 fi
