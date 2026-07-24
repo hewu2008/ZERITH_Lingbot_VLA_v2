@@ -27,14 +27,14 @@ if PROJECT_ROOT not in sys.path:
 from openpi_client import image_tools
 from robot_infer.msgpack_numpy import Packer, unpackb
 
-try:
-    from lerobot.datasets.lerobot_dataset import LeRobotDatasetMetadata
-    LEROBOT_DATASET_API = "v3"
-except ImportError:
-    from lerobot.common.datasets.lerobot_dataset import LeRobotDatasetMetadata
-    LEROBOT_DATASET_API = "v2"
+# try:
+#     from lerobot.datasets.lerobot_dataset import LeRobotDatasetMetadata
+#     LEROBOT_DATASET_API = "v3"
+# except ImportError:
+#     from lerobot.common.datasets.lerobot_dataset import LeRobotDatasetMetadata
+#     LEROBOT_DATASET_API = "v2"
 
-from lingbotvla.data.vla_data.base_dataset import LeRobotDataset
+# from lingbotvla.data.vla_data.base_dataset import LeRobotDataset
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ DT = 1 / 30
 DEFAULT_PROMPT = "clear the bin box"
 
 ACTION_DEAD_ZONE_THRESHOLD = 0.000
-ACTION_LIMIT_THRESHOLD = 0.02
+ACTION_LIMIT_THRESHOLD = 0.08
 GRIPPER_INDICES = [7, 15]
 
 
