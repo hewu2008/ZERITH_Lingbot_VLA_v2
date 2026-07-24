@@ -6,7 +6,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 
 ROBO_NAME="zerith"
-HOST="172.31.200.250"
+HOST="127.0.0.1"
 PORT=55555
 PROMPT="clear the bin box"
 NUM_STEPS=5
