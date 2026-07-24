@@ -41,7 +41,7 @@ python -m torch.distributed.run \
   --train.global_batch_size=32 \
   --train.gradient_accumulation_steps=1 \
   --train.max_steps=40000 \
-  --train.save_steps=2000 \
+  --train.save_steps=1000 \
   --train.enable_resume=true \
   --train.output_dir output/zerith_lora \
   2>&1 | tee output/log_zerith_lora.txt
