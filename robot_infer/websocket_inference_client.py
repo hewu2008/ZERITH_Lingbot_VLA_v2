@@ -41,8 +41,12 @@ logger = logging.getLogger(__name__)
 DT = 1 / 30
 DEFAULT_PROMPT = "clear the bin box"
 
+ACTION_DEAD_ZONE_THRESHOLD = 0.01
+ACTION_LIMIT_THRESHOLD = 0.02
+GRIPPER_INDICES = [7, 15]
 
-def process_action(action, last_executed_action=None, dead_zone_threshold=0.015, limit_threshold=0.05, gripper_indices=None):
+
+def process_action(action, last_executed_action=None, dead_zone_threshold=ACTION_DEAD_ZONE_THRESHOLD, limit_threshold=ACTION_LIMIT_THRESHOLD, gripper_indices=None):
     processed = np.copy(action)
     
     if gripper_indices is None:
@@ -395,9 +399,9 @@ def open_loop_eval_main(args):
                     processed_action_chunk[t] = process_action(
                         action_step, 
                         last_executed_action,
-                        dead_zone_threshold=0.015,
-                        limit_threshold=0.05,
-                        gripper_indices=[7, 14]
+                        dead_zone_threshold=ACTION_DEAD_ZONE_THRESHOLD,
+                        limit_threshold=ACTION_LIMIT_THRESHOLD,
+                        gripper_indices=GRIPPER_INDICES
                     )
                     last_executed_action = processed_action_chunk[t].copy()
                 processed_action_across_time.append(processed_action_chunk)
@@ -535,7 +539,6 @@ def main(args):
     observation = env.get_observation().observation
 
     last_executed_action = None
-    gripper_indices = [14, 15]
 
     try:
         for step in range(args.num_steps):
@@ -552,9 +555,9 @@ def main(args):
             processed_action = process_action(
                 action, 
                 last_executed_action,
-                dead_zone_threshold=0.015,
-                limit_threshold=0.05,
-                gripper_indices=gripper_indices
+                dead_zone_threshold=ACTION_DEAD_ZONE_THRESHOLD,
+                limit_threshold=ACTION_LIMIT_THRESHOLD,
+                gripper_indices=GRIPPER_INDICES
             )
             last_executed_action = processed_action.copy()
 
