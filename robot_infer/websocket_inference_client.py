@@ -9,7 +9,7 @@ from pathlib import Path
 import cv2
 import h5py
 import numpy as np
-import torch
+# import torch
 import websockets.sync.client
 
 from typing_extensions import override
@@ -164,7 +164,7 @@ class ActionSmooth:
 
     def get_action(self, observation):
         if self.t % self.query_frequency == 0:
-            self.action_keep = self.client.infer(observation)["actions"][self.base_delay:self.action_horizon, ...]
+            self.action_keep = self.client.infer(observation)["action"][self.base_delay:self.action_horizon, ...]
             self.all_time_actions[self.t, self.t:self.t + self.action_horizon - self.base_delay] = self.action_keep
 
         actions_for_curr_step = self.all_time_actions[:, self.t]
