@@ -42,6 +42,26 @@ DT = 1 / 30
 DEFAULT_PROMPT = "clear the bin box"
 
 
+def process_action(action, last_executed_action=None, dead_zone_threshold=0.015, limit_threshold=0.05, gripper_indices=None):
+    processed = np.copy(action)
+    
+    if gripper_indices is None:
+        gripper_indices = []
+    
+    mask = np.ones(len(processed), dtype=bool)
+    mask[gripper_indices] = False
+    
+    processed[mask & (np.abs(processed) < dead_zone_threshold)] = 0.0
+    
+    if last_executed_action is not None:
+        delta = processed - last_executed_action
+        clamped_delta = np.copy(delta)
+        clamped_delta[mask] = np.clip(delta[mask], -limit_threshold, limit_threshold)
+        processed = last_executed_action + clamped_delta
+    
+    return processed
+
+
 def camera_aliases(camera_name: str) -> list[str]:
     return [
         camera_name,
@@ -371,15 +391,15 @@ def open_loop_eval_main(args):
 
                 processed_action_chunk = np.zeros_like(pred_action_chunk)
                 for t in range(pred_action_chunk.shape[0]):
-                    action_step = pred_action_chunk[t].copy()
-                    
-                    if last_executed_action is not None:
-                        action_delta = action_step - last_executed_action
-                        clamped_delta = np.clip(action_delta, -0.01, 0.01)
-                        action_step = last_executed_action + clamped_delta
-                    
-                    processed_action_chunk[t] = action_step
-                    last_executed_action = action_step.copy()
+                    action_step = pred_action_chunk[t]
+                    processed_action_chunk[t] = process_action(
+                        action_step, 
+                        last_executed_action,
+                        dead_zone_threshold=0.015,
+                        limit_threshold=0.05,
+                        gripper_indices=[7, 14]
+                    )
+                    last_executed_action = processed_action_chunk[t].copy()
                 processed_action_across_time.append(processed_action_chunk)
 
                 align_len = min(gt_action_chunk.shape[0], pred_action_chunk.shape[0])
@@ -514,6 +534,9 @@ def main(args):
     observation = env.reset().observation
     observation = env.get_observation().observation
 
+    last_executed_action = None
+    gripper_indices = [14, 15]
+
     try:
         for step in range(args.num_steps):
             observation["state"] = observation["qpos"]
@@ -526,10 +549,20 @@ def main(args):
             if data_action is not None:
                 action[-4:-2] = data_action[-4:-2]
 
-            if step % 10 == 0:
-                logger.info(f"Step {step}: action = {action}")
+            processed_action = process_action(
+                action, 
+                last_executed_action,
+                dead_zone_threshold=0.015,
+                limit_threshold=0.05,
+                gripper_indices=gripper_indices
+            )
+            last_executed_action = processed_action.copy()
 
-            env.step_joint(action[:-2])
+            if step % 10 == 0:
+                logger.info(f"Step {step}: raw action = {action}")
+                logger.info(f"Step {step}: processed action = {processed_action}")
+
+            env.step_joint(processed_action[:-2])
             elapsed_time = time.time() - time0
             time.sleep(max(0, DT - elapsed_time))
 
