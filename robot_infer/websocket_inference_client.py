@@ -321,7 +321,9 @@ def open_loop_eval_main(args):
         gt_action_across_time = []
         state_joints_across_time = []
         pred_action_across_time = []
+        processed_action_across_time = []
 
+        last_executed_action = None
         count = 0
         for data_id in range(start_id, end_id, args.chunk_size):
             if count >= args.max_infer_time:
@@ -367,26 +369,47 @@ def open_loop_eval_main(args):
                 pred_action_chunk = np.concatenate(pred_action_chunk, axis=-1)
                 pred_action_across_time.append(pred_action_chunk)
 
+                processed_action_chunk = np.copy(pred_action_chunk)
+                for t in range(processed_action_chunk.shape[0]):
+                    action_step = processed_action_chunk[t]
+                    
+                    action_step[np.abs(action_step) < 0.005] = 0.0
+                    
+                    if last_executed_action is not None:
+                        action_delta = action_step - last_executed_action
+                        action_step = last_executed_action + np.clip(action_delta, -0.01, 0.01)
+                    
+                    processed_action_chunk[t] = action_step
+                    last_executed_action = action_step
+                processed_action_across_time.append(processed_action_chunk)
+
                 align_len = min(gt_action_chunk.shape[0], pred_action_chunk.shape[0])
                 mae_chunk = np.mean(np.abs(gt_action_chunk[:align_len] - pred_action_chunk[:align_len]))
+                mae_processed_chunk = np.mean(np.abs(gt_action_chunk[:align_len] - processed_action_chunk[:align_len]))
                 
                 logger.info(f"Trajectory {traj_id}: step {count}/{args.max_infer_time}, data_id {data_id}")
                 logger.info(f"  gt_action_chunk shape: {gt_action_chunk.shape}")
                 logger.info(f"  pred_action_chunk shape: {pred_action_chunk.shape}")
                 logger.info(f"  gt_action_chunk mean: {np.mean(gt_action_chunk):.6f}, std: {np.std(gt_action_chunk):.6f}")
                 logger.info(f"  pred_action_chunk mean: {np.mean(pred_action_chunk):.6f}, std: {np.std(pred_action_chunk):.6f}")
-                logger.info(f"  MAE (per-step): {mae_chunk:.6f}")
+                logger.info(f"  processed_action_chunk mean: {np.mean(processed_action_chunk):.6f}, std: {np.std(processed_action_chunk):.6f}")
+                logger.info(f"  MAE (raw): {mae_chunk:.6f}")
+                logger.info(f"  MAE (processed): {mae_processed_chunk:.6f}")
                 
                 logger.info(f"  --- 50 steps action details ---")
                 for t in range(align_len):
                     gt_step = gt_action_chunk[t]
                     pred_step = pred_action_chunk[t]
+                    processed_step = processed_action_chunk[t]
                     mae_step = np.mean(np.abs(gt_step - pred_step))
+                    mae_processed_step = np.mean(np.abs(gt_step - processed_step))
                     gt_str = "[" + ", ".join(f"{v:.4f}" for v in gt_step) + "]"
                     pred_str = "[" + ", ".join(f"{v:.4f}" for v in pred_step) + "]"
+                    processed_str = "[" + ", ".join(f"{v:.4f}" for v in processed_step) + "]"
                     logger.info(f"  t={t:2d}: gt={gt_str}")
                     logger.info(f"        pred={pred_str}")
-                    logger.info(f"        MAE={mae_step:.6f}")
+                    logger.info(f"        processed={processed_str}")
+                    logger.info(f"        MAE(raw)={mae_step:.6f}, MAE(processed)={mae_processed_step:.6f}")
             else:
                 logger.info(f"Trajectory {traj_id}: step {count}/{args.max_infer_time}, data_id {data_id} - no pred action")
 
@@ -399,21 +422,27 @@ def open_loop_eval_main(args):
         gt_action_across_time = np.concatenate(gt_action_across_time, axis=0)
         state_joints_across_time = np.concatenate(state_joints_across_time, axis=0)
         pred_action_across_time = np.concatenate(pred_action_across_time, axis=0)
+        processed_action_across_time = np.concatenate(processed_action_across_time, axis=0)
 
-        min_len = min(gt_action_across_time.shape[0], pred_action_across_time.shape[0])
+        min_len = min(gt_action_across_time.shape[0], pred_action_across_time.shape[0], processed_action_across_time.shape[0])
         gt_action_across_time = gt_action_across_time[:min_len]
         pred_action_across_time = pred_action_across_time[:min_len]
+        processed_action_across_time = processed_action_across_time[:min_len]
 
-        mse = np.mean((gt_action_across_time - pred_action_across_time) ** 2)
-        mae = np.mean(np.abs(gt_action_across_time - pred_action_across_time))
+        mse_raw = np.mean((gt_action_across_time - pred_action_across_time) ** 2)
+        mae_raw = np.mean(np.abs(gt_action_across_time - pred_action_across_time))
+        mse_processed = np.mean((gt_action_across_time - processed_action_across_time) ** 2)
+        mae_processed = np.mean(np.abs(gt_action_across_time - processed_action_across_time))
 
-        logger.info(f"Trajectory {traj_id} - MSE: {mse}, MAE: {mae}")
+        logger.info(f"Trajectory {traj_id} - MSE(raw): {mse_raw}, MAE(raw): {mae_raw}")
+        logger.info(f"Trajectory {traj_id} - MSE(processed): {mse_processed}, MAE(processed): {mae_processed}")
         logger.info(f"gt_action shape: {gt_action_across_time.shape}, pred_action shape: {pred_action_across_time.shape}")
 
-        all_mse.append(mse)
-        all_mae.append(mae)
+        all_mse.append(mse_raw)
+        all_mae.append(mae_raw)
 
-        save_plot_path = os.path.join(args.save_plot_path, f'{traj_id}.png')
+        save_plot_path_raw = os.path.join(args.save_plot_path, f'{traj_id}_raw.png')
+        save_plot_path_processed = os.path.join(args.save_plot_path, f'{traj_id}_processed.png')
         os.makedirs(args.save_plot_path, exist_ok=True)
 
         plot_trajectory_results(
@@ -423,7 +452,17 @@ def open_loop_eval_main(args):
             traj_id=traj_id,
             action_keys=action_keys,
             action_horizon=args.chunk_size,
-            save_plot_path=save_plot_path,
+            save_plot_path=save_plot_path_raw,
+        )
+
+        plot_trajectory_results(
+            state_joints_across_time=state_joints_across_time[:min_len],
+            gt_action_across_time=gt_action_across_time,
+            pred_action_across_time=processed_action_across_time,
+            traj_id=traj_id,
+            action_keys=action_keys,
+            action_horizon=args.chunk_size,
+            save_plot_path=save_plot_path_processed,
         )
 
     if all_mse:
