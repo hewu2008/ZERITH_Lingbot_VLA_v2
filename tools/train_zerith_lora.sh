@@ -39,7 +39,7 @@ python -m torch.distributed.run \
   --train.lr_min=5e-6 \
   --train.micro_batch_size=1 \
   --train.global_batch_size=8 \
-  --train.gradient_accumulation_steps=1 \
+  --train.gradient_accumulation_steps=8 \
   --train.max_steps=40000 \
   --train.save_steps=4000 \
   --train.enable_resume=true \
