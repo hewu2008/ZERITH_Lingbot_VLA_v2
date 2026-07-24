@@ -369,18 +369,19 @@ def open_loop_eval_main(args):
                 pred_action_chunk = np.concatenate(pred_action_chunk, axis=-1)
                 pred_action_across_time.append(pred_action_chunk)
 
-                processed_action_chunk = np.copy(pred_action_chunk)
-                for t in range(processed_action_chunk.shape[0]):
-                    action_step = processed_action_chunk[t]
+                processed_action_chunk = np.zeros_like(pred_action_chunk)
+                for t in range(pred_action_chunk.shape[0]):
+                    action_step = pred_action_chunk[t].copy()
                     
-                    action_step[np.abs(action_step) < 0.005] = 0.0
+                    action_step[np.abs(action_step) < 0.015] = 0.0
                     
                     if last_executed_action is not None:
                         action_delta = action_step - last_executed_action
-                        action_step = last_executed_action + np.clip(action_delta, -0.01, 0.01)
+                        clamped_delta = np.clip(action_delta, -0.01, 0.01)
+                        action_step = last_executed_action + clamped_delta
                     
                     processed_action_chunk[t] = action_step
-                    last_executed_action = action_step
+                    last_executed_action = action_step.copy()
                 processed_action_across_time.append(processed_action_chunk)
 
                 align_len = min(gt_action_chunk.shape[0], pred_action_chunk.shape[0])
