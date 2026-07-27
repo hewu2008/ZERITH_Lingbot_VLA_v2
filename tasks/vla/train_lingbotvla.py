@@ -560,7 +560,7 @@ def main():
             model,
             lora_rank=args.train.lora_rank,
             lora_alpha=args.train.lora_alpha,
-            lora_target_modules="proj_in1,proj_in2,proj_out,to_q,to_kv,to_out,network",
+            lora_target_modules="proj_in1,proj_in2,proj_out,to_q,to_kv,to_out",
         )
         logger.info_rank0(f"Added LoRA to {len(align_lora_params)} alignment module parameters:")
         for param_info in align_lora_params:

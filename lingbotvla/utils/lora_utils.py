@@ -29,24 +29,18 @@ def add_lora_to_align_modules(
     model: nn.Module,
     lora_rank=4,
     lora_alpha=4,
-    lora_target_modules="proj_in1,proj_in2,proj_out,to_q,to_kv,to_out,network",
+    lora_target_modules="proj_in1,proj_in2,proj_out,to_q,to_kv,to_out",
     init_lora_weights=True,
 ):
     """
     Add LoRA to alignment-related modules in the model.
     This includes TaskTokenDepthHead, state_proj, action_in_proj, action_out_proj, etc.
+    Handles nested Linear layers in FeedForward (nn.Sequential) automatically.
     """
     if init_lora_weights == "kaiming":
         init_lora_weights = True
 
     align_target_modules = [m.strip() for m in lora_target_modules.split(",")]
-
-    lora_config = LoraConfig(
-        r=lora_rank,
-        lora_alpha=lora_alpha,
-        init_lora_weights=init_lora_weights,
-        target_modules=align_target_modules,
-    )
 
     align_module_names = [
         "depth_align_head",
@@ -60,6 +54,17 @@ def add_lora_to_align_modules(
         "action_out_proj",
     ]
 
+    def find_linear_modules(module, prefix=""):
+        """Find all nn.Linear modules and their full paths."""
+        result = {}
+        for name, m in module.named_children():
+            full_name = f"{prefix}.{name}" if prefix else name
+            if isinstance(m, nn.Linear):
+                result[full_name] = m
+            elif isinstance(m, nn.Module):
+                result.update(find_linear_modules(m, full_name))
+        return result
+
     for module_name in align_module_names:
         if not hasattr(model, module_name):
             continue
@@ -67,11 +72,37 @@ def add_lora_to_align_modules(
         if module is None:
             continue
 
-        has_linear = any(isinstance(m, nn.Linear) for m in module.modules())
-        if not has_linear:
+        linear_modules = find_linear_modules(module)
+        if not linear_modules:
             continue
 
+        matched_names = [name for name in linear_modules.keys() 
+                        if any(t in name for t in align_target_modules)]
+        unmatched_names = [name for name in linear_modules.keys() 
+                         if not any(t in name for t in align_target_modules)]
+
+        print(f"[LoRA Align] Module '{module_name}': {len(linear_modules)} Linear layers")
+        print(f"  Target matches: {len(matched_names)}, unmatched: {len(unmatched_names)}")
+        if matched_names:
+            print(f"  Matched: {matched_names}")
+        if unmatched_names:
+            print(f"  Unmatched (will use 'Linear' target): {unmatched_names}")
+
+        all_target_modules = list(align_target_modules)
+        if unmatched_names:
+            all_target_modules.append("Linear")
+
+        lora_config = LoraConfig(
+            r=lora_rank,
+            lora_alpha=lora_alpha,
+            init_lora_weights=init_lora_weights,
+            target_modules=all_target_modules,
+        )
+
         inject_adapter_in_model(lora_config, module)
+
+        lora_count = sum(1 for _, p in module.named_parameters() if "lora" in _)
+        print(f"  Added {lora_count} LoRA parameters to '{module_name}'")
 
         for name, param in module.named_parameters():
             if "lora" in name:
@@ -79,7 +110,6 @@ def add_lora_to_align_modules(
 
         setattr(model, module_name, module)
 
-    # Make embeddings trainable (they are nn.Parameter, not Linear)
     embed_keywords = [
         "depth_align_embs",
         "future_depth_align_embs",
