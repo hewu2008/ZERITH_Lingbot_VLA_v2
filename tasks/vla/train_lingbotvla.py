@@ -553,29 +553,29 @@ def main():
             lora_target_modules_support=args.train.lora_target_modules_support.split(","),
         )
 
-        align_param_keywords = [
-                "depth_align_embs",
-                "future_depth_align_embs",
-                "current_video_align_embs",
-                "future_video_align_embs",
-                "depth_align_head",
-                "future_depth_align_head",
-                "current_video_align_head",
-                "future_video_align_head",
-                "current_shared_task_proj",
-                "future_shared_task_proj",
-                "state_proj",
-                "action_in_proj",
-                "action_out_proj",
-            ]
-        enabled_align_params = []
-        for name, param in model.named_parameters():
-            if any(keyword in name for keyword in align_param_keywords):
-                param.requires_grad = True
-                enabled_align_params.append(f"{name}: {param.numel()}")
-        logger.info_rank0(f"Enabled {len(enabled_align_params)} alignment-related parameters for training:")
-        for param_info in enabled_align_params:
-            logger.info_rank0(f"  - {param_info}")
+        # align_param_keywords = [
+        #         "depth_align_embs",
+        #         "future_depth_align_embs",
+        #         "current_video_align_embs",
+        #         "future_video_align_embs",
+        #         "depth_align_head",
+        #         "future_depth_align_head",
+        #         "current_video_align_head",
+        #         "future_video_align_head",
+        #         "current_shared_task_proj",
+        #         "future_shared_task_proj",
+        #         "state_proj",
+        #         "action_in_proj",
+        #         "action_out_proj",
+        #     ]
+        # enabled_align_params = []
+        # for name, param in model.named_parameters():
+        #     if any(keyword in name for keyword in align_param_keywords):
+        #         param.requires_grad = True
+        #         enabled_align_params.append(f"{name}: {param.numel()}")
+        # logger.info_rank0(f"Enabled {len(enabled_align_params)} alignment-related parameters for training:")
+        # for param_info in enabled_align_params:
+        #     logger.info_rank0(f"  - {param_info}")
 
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         total_params = sum(p.numel() for p in model.parameters())
