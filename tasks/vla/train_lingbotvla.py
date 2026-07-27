@@ -463,6 +463,8 @@ def main():
         print('====Loading Depth Model====')
         moge_model, morgbd_model = build_depth_model(args.train.align_params)
         if args.train.use_compile:
+            # Disable donated-buffer so that torch.autograd.grad(retain_graph=True) works
+            torch._functorch.config.donated_buffer = False
             moge_model = torch.compile(moge_model)
             morgbd_model = torch.compile(morgbd_model)
         if 'visual_dir' not in args.train.align_params or not args.train.align_params['visual_dir']:
@@ -581,22 +583,7 @@ def main():
         total_params = sum(p.numel() for p in model.parameters())
         logger.info_rank0(f"LoRA enabled: {trainable_params}/{total_params} parameters ({trainable_params/total_params*100:.2f}%) are trainable")
 
-    # Collect LoRA parameter references for per-loss grad norm monitoring
-    # Filter: VLM LoRA params only (exclude action expert qwen_expert params)
     lora_params_for_grad_norm = []
-    if args.train.use_lora:
-        all_lora_params = [
-            (n, p) for n, p in model.named_parameters()
-            if ("lora_A" in n or "lora_B" in n) and p.requires_grad
-        ]
-        lora_params_for_grad_norm = [
-            p for n, p in all_lora_params if "qwen_expert" not in n
-        ]
-        expert_lora_count = len(all_lora_params) - len(lora_params_for_grad_norm)
-        logger.info_rank0(
-            f"Collected {len(lora_params_for_grad_norm)} VLM LoRA param tensors "
-            f"(excluded {expert_lora_count} action expert LoRA tensors) for grad norm monitoring"
-        )
 
     model = build_parallelize_model(
         model,
@@ -618,6 +605,25 @@ def main():
         use_future_image=args.data.use_future_image,
     )
     logger.info_rank0(model)
+
+    # Collect LoRA parameter references for per-loss grad norm monitoring
+    # NOTE: Must be done AFTER build_parallelize_model so that the references
+    # point to the actual DTensor parameters used in the computation graph
+    # (not the original nn.Parameter objects that FSDP replaced).
+    # Filter: VLM LoRA params only (exclude action expert qwen_expert params)
+    if args.train.use_lora:
+        all_lora_params = [
+            (n, p) for n, p in model.named_parameters()
+            if ("lora_A" in n or "lora_B" in n) and p.requires_grad
+        ]
+        lora_params_for_grad_norm = [
+            p for n, p in all_lora_params if "qwen_expert" not in n
+        ]
+        expert_lora_count = len(all_lora_params) - len(lora_params_for_grad_norm)
+        logger.info_rank0(
+            f"Collected {len(lora_params_for_grad_norm)} VLM LoRA param tensors "
+            f"(excluded {expert_lora_count} action expert LoRA tensors) for grad norm monitoring"
+        )
 
     if args.train.use_compile:
         model = torch.compile(model)
@@ -1006,7 +1012,7 @@ def main():
                         _lora_gn_total = (_lora_gn_vla ** 2 + _lora_gn_depth ** 2 + _lora_gn_video ** 2) ** 0.5
                         lora_grad_norms_log = (_lora_gn_vla, _lora_gn_depth, _lora_gn_video, _lora_gn_total)
                     except Exception as e:
-                        logger.debug(f"LoRA grad norm computation failed: {e}")
+                        logger.info_rank0(f"LoRA grad norm computation failed at step {global_step}: {e}")
 
                 with model_bwd_context:
                     loss.backward()
