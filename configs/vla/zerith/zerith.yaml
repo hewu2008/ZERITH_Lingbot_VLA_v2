@@ -95,8 +95,8 @@ train:
   align_params:
     mode: 'query'
     num_task_tokens: 8
-    depth_loss_weight: 0.4
-    future_depth_loss_weight: 0.4
+    depth_loss_weight: 0.04
+    future_depth_loss_weight: 0.04
     use_future_video: true
     llm:
       dim_out: 2560
@@ -141,11 +141,11 @@ train:
       future_video_loss_weight: 0.8
       use_smooth_l1_loss: false
       use_mse_loss: true
-      mse_loss_weight: 0.4
+      mse_loss_weight: 0.04
       use_patch_loss: true
       use_current_patch_loss: true
       use_cosine_loss: true
-      cosine_loss_weight: 0.4
+      cosine_loss_weight: 0.04
       use_cls_loss: false
       cls_loss_type: mse
       cls_loss_weight: 0.2
