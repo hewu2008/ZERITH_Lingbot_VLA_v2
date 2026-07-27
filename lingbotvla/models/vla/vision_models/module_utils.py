@@ -482,13 +482,16 @@ def log_depth(vis_head, depth_pred_feats, depth_target_feats=None, steps=0, conf
     output_morgbd_targets = output_morgbd_targets['depth_reg'].cpu().numpy()
 
     num_total = output_morgbd_preds.shape[0]
-    num_to_save = min(num_total, max_samples)
 
-    for idx in range(num_to_save):
-        output_morgbd_target = output_morgbd_targets[idx, 0]
-        output_morgbd_pred = output_morgbd_preds[idx, 0]
+    for idx in range(num_total):
+        target_sample = output_morgbd_targets[idx]
+        pred_sample = output_morgbd_preds[idx]
+        if target_sample.ndim == 3:
+            target_sample = target_sample[0]
+        if pred_sample.ndim == 3:
+            pred_sample = pred_sample[0]
 
-        depth_list = [output_morgbd_target, output_morgbd_pred]
+        depth_list = [target_sample, pred_sample]
         depth_color_list = [cv2.cvtColor(colorize_depth(depth_raw), cv2.COLOR_RGB2BGR) for depth_raw in depth_list]
 
         depth_concat = np.concatenate(depth_color_list, axis=1)
