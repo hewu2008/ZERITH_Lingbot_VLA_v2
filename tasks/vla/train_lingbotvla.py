@@ -556,11 +556,19 @@ def main():
         )
 
         align_param_keywords = [
-                "depth_align_head",
-                "future_depth_align_head",
-                "current_video_align_head",
-                "future_video_align_head",
-                "action_out_proj",
+            "depth_align_embs",
+            "future_depth_align_embs",
+            "current_video_align_embs",
+            "future_video_align_embs",
+            "depth_align_head",
+            "future_depth_align_head",
+            "current_video_align_head",
+            "future_video_align_head",
+            "current_shared_task_proj",
+            "future_shared_task_proj",
+            "state_proj",
+            "action_in_proj",
+            "action_out_proj",
             ]
         enabled_align_params = []
         for name, param in model.named_parameters():
