@@ -16,7 +16,8 @@ import torch
 import torch.nn as nn
 from peft import LoraConfig, inject_adapter_in_model
 from safetensors import safe_open
-
+from lingbotvla.utils import helper
+logger = helper.create_logger(__name__)
 
 def freeze_parameters(model: nn.Module):
     # Freeze parameters
@@ -65,50 +66,78 @@ def add_lora_to_align_modules(
                 result.update(find_linear_modules(m, full_name))
         return result
 
-    for module_name in align_module_names:
-        if not hasattr(model, module_name):
-            continue
-        module = getattr(model, module_name)
-        if module is None:
-            continue
+    def find_modules_with_attrs(module, attr_names, prefix=""):
+        """Recursively find submodules that have specific attributes."""
+        result = []
+        for name, m in module.named_children():
+            full_name = f"{prefix}.{name}" if prefix else name
+            has_any = any(hasattr(m, attr) for attr in attr_names)
+            if has_any:
+                result.append((full_name, m))
+            if isinstance(m, nn.Module):
+                result.extend(find_modules_with_attrs(m, attr_names, full_name))
+        return result
 
-        linear_modules = find_linear_modules(module)
-        if not linear_modules:
-            continue
+    align_submodules = find_modules_with_attrs(model, align_module_names)
 
-        matched_names = [name for name in linear_modules.keys() 
-                        if any(t in name for t in align_target_modules)]
-        unmatched_names = [name for name in linear_modules.keys() 
-                         if not any(t in name for t in align_target_modules)]
+    if not align_submodules:
+        logger.info_rank0("[LoRA Align] No alignment modules found in model.")
+        return []
 
-        print(f"[LoRA Align] Module '{module_name}': {len(linear_modules)} Linear layers")
-        print(f"  Target matches: {len(matched_names)}, unmatched: {len(unmatched_names)}")
-        if matched_names:
-            print(f"  Matched: {matched_names}")
-        if unmatched_names:
-            print(f"  Unmatched (will use 'Linear' target): {unmatched_names}")
+    logger.info_rank0(f"[LoRA Align] Found {len(align_submodules)} module(s) containing alignment attributes:")
+    for name, _ in align_submodules:
+        logger.info_rank0(f"  - {name}")
 
-        all_target_modules = list(align_target_modules)
-        if unmatched_names:
-            all_target_modules.append("Linear")
+    align_module_param_prefixes = []
+    for parent_name, parent_module in align_submodules:
+        for module_name in align_module_names:
+            if not hasattr(parent_module, module_name):
+                continue
+            module = getattr(parent_module, module_name)
+            if module is None:
+                continue
 
-        lora_config = LoraConfig(
-            r=lora_rank,
-            lora_alpha=lora_alpha,
-            init_lora_weights=init_lora_weights,
-            target_modules=all_target_modules,
-        )
+            if not isinstance(module, nn.Module):
+                continue
 
-        inject_adapter_in_model(lora_config, module)
+            linear_modules = find_linear_modules(module)
+            if not linear_modules:
+                continue
 
-        lora_count = sum(1 for _, p in module.named_parameters() if "lora" in _)
-        print(f"  Added {lora_count} LoRA parameters to '{module_name}'")
+            matched_names = [name for name in linear_modules.keys() 
+                            if any(t in name for t in align_target_modules)]
+            unmatched_names = [name for name in linear_modules.keys() 
+                             if not any(t in name for t in align_target_modules)]
 
-        for name, param in module.named_parameters():
-            if "lora" in name:
-                param.data = param.data.to(dtype=torch.float32)
+            logger.info_rank0(f"[LoRA Align] '{parent_name}.{module_name}': {len(linear_modules)} Linear layers")
+            logger.info_rank0(f"  Target matches: {len(matched_names)}, unmatched: {len(unmatched_names)}")
+            if matched_names:
+                logger.info_rank0(f"  Matched: {matched_names}")
+            if unmatched_names:
+                logger.info_rank0(f"  Unmatched (will use 'Linear' target): {unmatched_names}")
 
-        setattr(model, module_name, module)
+            all_target_modules = list(align_target_modules)
+            if unmatched_names:
+                all_target_modules.append("Linear")
+
+            lora_config = LoraConfig(
+                r=lora_rank,
+                lora_alpha=lora_alpha,
+                init_lora_weights=init_lora_weights,
+                target_modules=all_target_modules,
+            )
+
+            inject_adapter_in_model(lora_config, module)
+
+            lora_count = sum(1 for _, p in module.named_parameters() if "lora" in _)
+            logger.info_rank0(f"  Added {lora_count} LoRA parameters to '{parent_name}.{module_name}'")
+
+            for name, param in module.named_parameters():
+                if "lora" in name:
+                    param.data = param.data.to(dtype=torch.float32)
+
+            param_prefix = f"model.{parent_name}.{module_name}"
+            align_module_param_prefixes.append(param_prefix)
 
     embed_keywords = [
         "depth_align_embs",
@@ -123,7 +152,8 @@ def add_lora_to_align_modules(
     align_lora_params = []
     for name, param in model.named_parameters():
         if "lora" in name and param.requires_grad:
-            align_lora_params.append(f"{name}: {param.numel()}")
+            if any(prefix in name for prefix in align_module_param_prefixes):
+                align_lora_params.append(f"{name}: {param.numel()}")
 
     return align_lora_params
 
