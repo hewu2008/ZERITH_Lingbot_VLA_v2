@@ -36,7 +36,7 @@ from lingbotvla.utils.async_hf_checkpoint import AsyncHFCheckpointSaver
 from lingbotvla.utils.arguments import EvalArguments, DataArguments, ModelArguments, TrainingArguments, parse_args, save_args
 from lingbotvla.utils.dist_utils import all_reduce
 from lingbotvla.models.config_registry import get_config_registry
-from lingbotvla.utils.lora_utils import add_lora_to_model, freeze_parameters
+from lingbotvla.utils.lora_utils import add_lora_to_model, add_lora_to_align_modules, freeze_parameters
 
 from lingbotvla.models.vla.vision_models.module_utils import (
     build_depth_model,
@@ -555,28 +555,15 @@ def main():
             lora_target_modules_support=args.train.lora_target_modules_support.split(","),
         )
 
-        align_param_keywords = [
-                "depth_align_embs",
-                "future_depth_align_embs",
-                "current_video_align_embs",
-                "future_video_align_embs",
-                "depth_align_head",
-                "future_depth_align_head",
-                "current_video_align_head",
-                "future_video_align_head",
-                "current_shared_task_proj",
-                "future_shared_task_proj",
-                "state_proj",
-                "action_in_proj",
-                "action_out_proj",
-            ]
-        enabled_align_params = []
-        for name, param in model.named_parameters():
-            if any(keyword in name for keyword in align_param_keywords):
-                param.requires_grad = True
-                enabled_align_params.append(f"{name}: {param.numel()}")
-        logger.info_rank0(f"Enabled {len(enabled_align_params)} alignment-related parameters for training:")
-        for param_info in enabled_align_params:
+        logger.info_rank0("Applying LoRA to alignment modules...")
+        align_lora_params = add_lora_to_align_modules(
+            model,
+            lora_rank=args.train.lora_rank,
+            lora_alpha=args.train.lora_alpha,
+            lora_target_modules="proj_in1,proj_in2,proj_out,to_q,to_kv,to_out,network",
+        )
+        logger.info_rank0(f"Added LoRA to {len(align_lora_params)} alignment module parameters:")
+        for param_info in align_lora_params:
             logger.info_rank0(f"  - {param_info}")
 
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)

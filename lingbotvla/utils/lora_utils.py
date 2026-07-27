@@ -25,6 +25,79 @@ def freeze_parameters(model: nn.Module):
     model.train()
 
 
+def add_lora_to_align_modules(
+    model: nn.Module,
+    lora_rank=4,
+    lora_alpha=4,
+    lora_target_modules="proj_in1,proj_in2,proj_out,to_q,to_kv,to_out,network",
+    init_lora_weights=True,
+):
+    """
+    Add LoRA to alignment-related modules in the model.
+    This includes TaskTokenDepthHead, state_proj, action_in_proj, action_out_proj, etc.
+    """
+    if init_lora_weights == "kaiming":
+        init_lora_weights = True
+
+    align_target_modules = [m.strip() for m in lora_target_modules.split(",")]
+
+    lora_config = LoraConfig(
+        r=lora_rank,
+        lora_alpha=lora_alpha,
+        init_lora_weights=init_lora_weights,
+        target_modules=align_target_modules,
+    )
+
+    align_module_names = [
+        "depth_align_head",
+        "future_depth_align_head",
+        "current_video_align_head",
+        "future_video_align_head",
+        "current_shared_task_proj",
+        "future_shared_task_proj",
+        "state_proj",
+        "action_in_proj",
+        "action_out_proj",
+    ]
+
+    for module_name in align_module_names:
+        if not hasattr(model, module_name):
+            continue
+        module = getattr(model, module_name)
+        if module is None:
+            continue
+
+        has_linear = any(isinstance(m, nn.Linear) for m in module.modules())
+        if not has_linear:
+            continue
+
+        inject_adapter_in_model(lora_config, module)
+
+        for name, param in module.named_parameters():
+            if "lora" in name:
+                param.data = param.data.to(dtype=torch.float32)
+
+        setattr(model, module_name, module)
+
+    # Make embeddings trainable (they are nn.Parameter, not Linear)
+    embed_keywords = [
+        "depth_align_embs",
+        "future_depth_align_embs",
+        "current_video_align_embs",
+        "future_video_align_embs",
+    ]
+    for name, param in model.named_parameters():
+        if any(kw in name for kw in embed_keywords):
+            param.requires_grad = True
+
+    align_lora_params = []
+    for name, param in model.named_parameters():
+        if "lora" in name and param.requires_grad:
+            align_lora_params.append(f"{name}: {param.numel()}")
+
+    return align_lora_params
+
+
 def add_lora_to_model(
     model: nn.Module,
     lora_rank=4,
