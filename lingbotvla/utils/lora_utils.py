@@ -16,14 +16,32 @@ import torch
 import torch.nn as nn
 from peft import LoraConfig, inject_adapter_in_model
 from safetensors import safe_open
-from lingbotvla.utils import helper
-logger = helper.create_logger(__name__)
+
 
 def freeze_parameters(model: nn.Module):
     # Freeze parameters
     model.requires_grad_(False)
     model.eval()
     model.train()
+
+
+def _add_lora_to_linear_layer(linear_layer: nn.Linear, lora_rank: int, lora_alpha: int) -> nn.Module:
+    """
+    Manually add LoRA to a single nn.Linear layer.
+    Returns a lora.Linear-wrapped version of the original layer.
+    """
+    from peft.tuners.lora import Linear as LoraLinear
+    
+    lora_layer = LoraLinear(
+        base_layer=linear_layer,
+        adapter_name="default",
+        r=lora_rank,
+        lora_alpha=lora_alpha,
+        lora_dropout=0.0,
+        init_lora_weights=True,
+    )
+    
+    return lora_layer
 
 
 def add_lora_to_align_modules(
@@ -38,6 +56,8 @@ def add_lora_to_align_modules(
     This includes TaskTokenDepthHead, state_proj, action_in_proj, action_out_proj, etc.
     Handles nested Linear layers in FeedForward (nn.Sequential) automatically.
     """
+    from lingbotvla.distributed import logger
+
     if init_lora_weights == "kaiming":
         init_lora_weights = True
 
@@ -78,6 +98,18 @@ def add_lora_to_align_modules(
                 result.extend(find_modules_with_attrs(m, attr_names, full_name))
         return result
 
+    def get_parent_module_and_attr(module, path):
+        """Navigate to the parent module and return the attribute name to replace."""
+        parts = path.split(".")
+        current = module
+        for part in parts[:-1]:
+            if part.isdigit():
+                current = current[int(part)]
+            else:
+                current = getattr(current, part)
+        attr_name = parts[-1]
+        return current, attr_name
+
     align_submodules = find_modules_with_attrs(model, align_module_names)
 
     if not align_submodules:
@@ -114,20 +146,29 @@ def add_lora_to_align_modules(
             if matched_names:
                 logger.info_rank0(f"  Matched: {matched_names}")
             if unmatched_names:
-                logger.info_rank0(f"  Unmatched (will use 'Linear' target): {unmatched_names}")
+                logger.info_rank0(f"  Unmatched (manual LoRA): {unmatched_names}")
 
-            all_target_modules = list(align_target_modules)
-            if unmatched_names:
-                all_target_modules.append("Linear")
+            if matched_names:
+                matched_lora_config = LoraConfig(
+                    r=lora_rank,
+                    lora_alpha=lora_alpha,
+                    init_lora_weights=init_lora_weights,
+                    target_modules=align_target_modules,
+                )
+                inject_adapter_in_model(matched_lora_config, module)
 
-            lora_config = LoraConfig(
-                r=lora_rank,
-                lora_alpha=lora_alpha,
-                init_lora_weights=init_lora_weights,
-                target_modules=all_target_modules,
-            )
-
-            inject_adapter_in_model(lora_config, module)
+            for unmatched_name in unmatched_names:
+                parent, attr_name = get_parent_module_and_attr(module, unmatched_name)
+                
+                if attr_name.isdigit():
+                    idx = int(attr_name)
+                    original_layer = parent[idx]
+                    lora_layer = _add_lora_to_linear_layer(original_layer, lora_rank, lora_alpha)
+                    parent[idx] = lora_layer
+                else:
+                    original_layer = getattr(parent, attr_name)
+                    lora_layer = _add_lora_to_linear_layer(original_layer, lora_rank, lora_alpha)
+                    setattr(parent, attr_name, lora_layer)
 
             lora_count = sum(1 for _, p in module.named_parameters() if "lora" in _)
             logger.info_rank0(f"  Added {lora_count} LoRA parameters to '{parent_name}.{module_name}'")
@@ -136,7 +177,7 @@ def add_lora_to_align_modules(
                 if "lora" in name:
                     param.data = param.data.to(dtype=torch.float32)
 
-            param_prefix = f"model.{parent_name}.{module_name}"
+            param_prefix = f"{parent_name}.{module_name}" if parent_name else module_name
             align_module_param_prefixes.append(param_prefix)
 
     embed_keywords = [

@@ -555,17 +555,6 @@ def main():
             lora_target_modules_support=args.train.lora_target_modules_support.split(","),
         )
 
-        logger.info_rank0("Applying LoRA to alignment modules...")
-        align_lora_params = add_lora_to_align_modules(
-            model,
-            lora_rank=args.train.lora_rank,
-            lora_alpha=args.train.lora_alpha,
-            lora_target_modules="proj_in1,proj_in2,proj_out,to_q,to_kv,to_out",
-        )
-        logger.info_rank0(f"Added LoRA to {len(align_lora_params)} alignment module parameters:")
-        for param_info in align_lora_params:
-            logger.info_rank0(f"  - {param_info}")
-
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         total_params = sum(p.numel() for p in model.parameters())
         logger.info_rank0(f"LoRA enabled: {trainable_params}/{total_params} parameters ({trainable_params/total_params*100:.2f}%) are trainable")
