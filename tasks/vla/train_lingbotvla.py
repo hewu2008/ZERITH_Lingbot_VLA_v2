@@ -51,6 +51,29 @@ import gc
 gc.set_threshold(50000, 50, 50)
 
 logger = helper.create_logger(__name__)
+
+
+def compute_lora_grad_norm(loss, lora_params, retain_graph=True):
+    """Compute gradient norm of a loss w.r.t. LoRA parameters only.
+
+    Uses torch.autograd.grad to compute gradients without accumulating into .grad.
+    Handles DTensor (FSDP) by calling .full_tensor() when needed.
+    """
+    from torch.distributed.tensor import DTensor
+
+    valid_params = [p for p in lora_params if p.requires_grad]
+    grads = torch.autograd.grad(
+        loss, valid_params, retain_graph=retain_graph, allow_unused=True
+    )
+    total_sq = torch.tensor(0.0, device=loss.device, dtype=torch.float32)
+    for g in grads:
+        if g is None:
+            continue
+        g_flat = g.detach().float()
+        if isinstance(g_flat, DTensor):
+            g_flat = g_flat.full_tensor()
+        total_sq += g_flat.pow(2).sum()
+    return total_sq.sqrt()
 # try:
 #     from aistudio_tracking import training_tracking as wandb
 # except Exception as e:
@@ -312,6 +335,10 @@ class MyTrainingArguments(TrainingArguments):
         default=True,
         metadata={"help": "Whether to freeze non-LoRA parameters."},
     )
+    lora_grad_norm_log_interval: int = field(
+        default=10,
+        metadata={"help": "Interval (in steps) to log per-loss LoRA grad norms. 0 to disable."},
+    )
 
 @dataclass
 class MyDataArguments(DataArguments):
@@ -553,6 +580,23 @@ def main():
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         total_params = sum(p.numel() for p in model.parameters())
         logger.info_rank0(f"LoRA enabled: {trainable_params}/{total_params} parameters ({trainable_params/total_params*100:.2f}%) are trainable")
+
+    # Collect LoRA parameter references for per-loss grad norm monitoring
+    # Filter: VLM LoRA params only (exclude action expert qwen_expert params)
+    lora_params_for_grad_norm = []
+    if args.train.use_lora:
+        all_lora_params = [
+            (n, p) for n, p in model.named_parameters()
+            if ("lora_A" in n or "lora_B" in n) and p.requires_grad
+        ]
+        lora_params_for_grad_norm = [
+            p for n, p in all_lora_params if "qwen_expert" not in n
+        ]
+        expert_lora_count = len(all_lora_params) - len(lora_params_for_grad_norm)
+        logger.info_rank0(
+            f"Collected {len(lora_params_for_grad_norm)} VLM LoRA param tensors "
+            f"(excluded {expert_lora_count} action expert LoRA tensors) for grad norm monitoring"
+        )
 
     model = build_parallelize_model(
         model,
@@ -846,7 +890,8 @@ def main():
             current_batch_images = None
             torch.cuda.synchronize()
             start_time = time.time()
-            for micro_batch in micro_batches:
+            num_micro_batches = len(micro_batches)
+            for mb_idx, micro_batch in enumerate(micro_batches):
                 future_video_targets = None
                 future_video_current_preds = None
                 future_video_cls_targets = None
@@ -931,6 +976,37 @@ def main():
                     seq_wise_loss = seq_wise_loss / len(micro_batches)
                     router_z_loss = loss_log.get("router_z_loss", loss_log.get("moe_zloss/weighted", 0))
                     avg_lang_length = micro_batch['lang_masks'].sum(dim=-1).float().mean()
+
+                # --- Per-loss LoRA grad norm monitoring ---
+                # Must run BEFORE loss.backward() since backward() frees the graph
+                # Only compute on the last micro batch to avoid redundant computation
+                lora_grad_norms_log = None
+                if (
+                    args.train.use_lora
+                    and args.train.lora_grad_norm_log_interval > 0
+                    and lora_params_for_grad_norm
+                    and global_step % args.train.lora_grad_norm_log_interval == 0
+                    and mb_idx == num_micro_batches - 1
+                ):
+                    try:
+                        _lora_gn_vla = compute_lora_grad_norm(vla_loss, lora_params_for_grad_norm, retain_graph=True)
+                        _lora_gn_depth = torch.tensor(0.0, device=loss.device)
+                        _lora_gn_video = torch.tensor(0.0, device=loss.device)
+                        if not (isinstance(depth_loss, int) or isinstance(depth_loss, float)):
+                            _lora_gn_depth = compute_lora_grad_norm(
+                                depth_loss_weight * depth_loss, lora_params_for_grad_norm, retain_graph=True
+                            )
+                        if not (isinstance(future_video_loss, int) or isinstance(future_video_loss, float)):
+                            _lora_gn_video = compute_lora_grad_norm(
+                                future_video_loss_weight * future_video_loss, lora_params_for_grad_norm, retain_graph=True
+                            )
+                        _lora_gn_vla = _lora_gn_vla.item() if hasattr(_lora_gn_vla, 'item') else float(_lora_gn_vla)
+                        _lora_gn_depth = _lora_gn_depth.item() if hasattr(_lora_gn_depth, 'item') else float(_lora_gn_depth)
+                        _lora_gn_video = _lora_gn_video.item() if hasattr(_lora_gn_video, 'item') else float(_lora_gn_video)
+                        _lora_gn_total = (_lora_gn_vla ** 2 + _lora_gn_depth ** 2 + _lora_gn_video ** 2) ** 0.5
+                        lora_grad_norms_log = (_lora_gn_vla, _lora_gn_depth, _lora_gn_video, _lora_gn_total)
+                    except Exception as e:
+                        logger.debug(f"LoRA grad norm computation failed: {e}")
 
                 with model_bwd_context:
                     loss.backward()
@@ -1040,6 +1116,11 @@ def main():
                 f"Depth_Forward_Time {depth_forward_time: .3f}s, "
                 f"Ignore_Batch_Num {ignore_batch_num}"
             )
+            if lora_grad_norms_log is not None:
+                _gn_vla, _gn_depth, _gn_video, _gn_total = lora_grad_norms_log
+                logger.info_rank0(
+                    f"  LoRA GradNorm: VLA={_gn_vla:.4f}, Depth={_gn_depth:.4f}, Video={_gn_video:.4f}, Total={_gn_total:.4f}"
+                )
 
 
             if args.train.global_rank == 0:
@@ -1127,6 +1208,18 @@ def main():
                             load_cv = (total_counts.std(unbiased=False) / (mean + 1e-9)).item()
                             writer.add_scalar("moe_summary/load_cv", load_cv, global_step)
                 writer.add_scalar("training/grad_norm", grad_norm, global_step)
+                # Per-loss LoRA grad norms (only when computed this step)
+                if lora_grad_norms_log is not None:
+                    _gn_vla, _gn_depth, _gn_video, _gn_total = lora_grad_norms_log
+                    writer.add_scalar("lora_grad_norm/vla_loss", _gn_vla, global_step)
+                    writer.add_scalar("lora_grad_norm/depth_loss", _gn_depth, global_step)
+                    writer.add_scalar("lora_grad_norm/video_loss", _gn_video, global_step)
+                    writer.add_scalar("lora_grad_norm/total", _gn_total, global_step)
+                    # Ratio of each loss's contribution to total grad norm
+                    if _gn_total > 0:
+                        writer.add_scalar("lora_grad_norm/vla_ratio", _gn_vla / _gn_total, global_step)
+                        writer.add_scalar("lora_grad_norm/depth_ratio", _gn_depth / _gn_total, global_step)
+                        writer.add_scalar("lora_grad_norm/video_ratio", _gn_video / _gn_total, global_step)
                 writer.add_scalar("training/lr", lr, global_step)
                 if expert_lr is not None:
                     writer.add_scalar("training/expert_lr", expert_lr, global_step)
