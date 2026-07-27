@@ -478,10 +478,15 @@ def log_depth(vis_head, depth_pred_feats, depth_target_feats=None, steps=0, conf
     output_morgbd_preds = morgbd_model.dec_depth(depth_pred_feats, cls_token, num_tokens=256, resolution_level=3, img_h=224, img_w=224)
     output_morgbd_targets = morgbd_model.dec_depth(depth_target_feats, cls_token, num_tokens=256, resolution_level=3, img_h=224, img_w=224)
 
-    output_morgbd_preds = output_morgbd_preds['depth_reg'].squeeze().cpu().numpy()
-    output_morgbd_targets = output_morgbd_targets['depth_reg'].squeeze().cpu().numpy()
+    output_morgbd_preds = output_morgbd_preds['depth_reg'].cpu().numpy()
+    output_morgbd_targets = output_morgbd_targets['depth_reg'].cpu().numpy()
 
-    for idx, (output_morgbd_target, output_morgbd_pred) in enumerate(zip(output_morgbd_targets, output_morgbd_preds)):
+    num_total = output_morgbd_preds.shape[0]
+    num_to_save = min(num_total, max_samples)
+
+    for idx in range(num_to_save):
+        output_morgbd_target = output_morgbd_targets[idx, 0]
+        output_morgbd_pred = output_morgbd_preds[idx, 0]
 
         depth_list = [output_morgbd_target, output_morgbd_pred]
         depth_color_list = [cv2.cvtColor(colorize_depth(depth_raw), cv2.COLOR_RGB2BGR) for depth_raw in depth_list]
